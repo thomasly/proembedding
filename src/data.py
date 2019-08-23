@@ -2,6 +2,7 @@ import os
 from collections import namedtuple
 import tarfile
 import random
+import abc
 
 import numpy as np
 import pandas as pd
@@ -27,6 +28,7 @@ class TOUGH_C1:
         # create training and testing sets
         self.random_seed = random_seed
         self.train_ls, self.test_ls = self._split_dataset(train_test_ratio)
+        self.dataset = None
         
     def _load_lst(self, path):
         file_path = os.path.join(self.root, path)
@@ -104,34 +106,148 @@ class TOUGH_C1:
         train_ls += target_ls[:splitor]
         test_ls += target_ls[splitor:]
 
+    def _load_dataset(self):
+        self.dataset = dict()
+        for p in ["protein-control.tar.gz",
+                  "protein-heme.tar.gz",
+                  "protein-nucleotide.tar.gz",
+                  "protein-steroid.tar.gz"]:
+            self.dataset.update(self._load_tar(p))
+
+
+class BatchGenerator:
+
+    def __init__(self, data_ls, dataset, batch_size, if_shuffle=True):
+        self.data_ls = data_ls
+        self.dataset = dataset
+        self.if_shuffle = if_shuffle
+        self.batch_size = batch_size
+        self.n_batch = int(len(data_ls)/batch_size)
+        
+    def __next__(self):
+        try:
+            self.counter
+        except AttributeError:
+            self.counter = 0
+        if self.counter < self.n_batch:
+            self.counter += 1
+            return self._create_batch()
+        else:
+            self._reset()
+
+    @abc.abstractmethod
+    def _create_batch(self):
+        raise NotImplementedError
+        
+
+    def __iter__(self):
+        self.counter = 0
+        if self.if_shuffle:
+            random.shuffle(self.data_ls)
+        return self
+
+    def _reset(self):
+        self.counter = 0
+        if self.if_shuffle:
+            random.shuffle(self.data_ls)
+
+
+class PointnetData(BatchGenerator):
+
+    def __init__(self,
+                 data_ls,
+                 dataset,
+                 batch_size,
+                 pointcloud_len,
+                 if_shuffle=True,
+                 point_channels=3,
+                 label_len=1):
+        super(PointnetData, self).__init__(
+            data_ls, dataset, batch_size, if_shuffle)
+        self.pointcloud_len = pointcloud_len
+        self.point_channels = point_channels
+        self.label_len = label_len
+
+    def _create_batch(self):
+        batch_indices = range(
+            self.counter*self.batch_size, min(
+                (self.counter+1)*self.batch_size, len(self.data_ls)))
+        point_sets = np.zeros(
+            shape=(self.batch_size, self.pointcloud_len, self.point_channels),
+            dtype=np.float32
+        )
+        labels = np.zeros(
+            shape=(self.batch_size, self.label_len), dtype=np.int8)
+        sample_counter = 0
+        for i in batch_indices:
+            sample_id = self.data_ls[i].id
+            label = self.data_ls[i].label
+            data = self.dataset[sample_id]
+            pointcloud = np.zeros(
+                (self.pointcloud_len, self.point_channels), dtype=np.float32)
+            n_ca = 0
+            for atom in data:
+                if atom.atom_name.upper()=="CA":
+                    try:
+                        pointcloud[n_ca] = [atom.x, atom.y, atom.z]
+                        n_ca += 1
+                    except IndexError:
+                        break
+            point_sets[sample_counter] = pointcloud
+            labels[sample_counter] = label
+            sample_counter += 1
+        return point_sets, labels
+
+
 class TOUGH_POINT(TOUGH_C1):
 
-    def __init__(self, random_seed=0, train_test_ratio=0.9, subset="train"):
+    def __init__(self,
+                 batch_size=32,
+                 pointcloud_len=1024,
+                 random_seed=0,
+                 train_test_ratio=0.9):
         super(TOUGH_POINT, self).__init__(random_seed, train_test_ratio)
-        self.subset = subset
+        self.batch_size = batch_size
+        self.pointcloud_len = pointcloud_len
 
-    def __next__(self):
-        pass
+    def train(self):
+        if self.dataset is None:
+            self._load_dataset()
+        train_set = PointnetData(
+            self.train_ls, self.dataset, self.batch_size, self.pointcloud_len)
+        return train_set
 
+    def test(self):
+        if self.dataset is None:
+            self._load_dataset()
+        test_set = PointnetData(
+            self.test_ls, self.dataset, self.batch_size,
+            self.pointcloud_len, if_shuffle=False
+        )
+        return test_set
 
 
 if __name__ == "__main__":
-    def print_first(d):
-        key = list(d.keys())[0]
-        print(key)
-        print(d[key][0:10])
+    # def print_first(d):
+    #     key = list(d.keys())[0]
+    #     print(key)
+    #     print(d[key][0:10])
 
-    t = TOUGH_C1()
+    # t = TOUGH_C1()
     # print(f"control: {t.control_ls[0:2]}")
     # print(f"heme: {t.heme_ls[0:2]}")
     # print(f"nucleotide: {t.nucleotide_ls[0:2]}")
     # print(f"steroid: {t.steroid_ls[0:2]}")
     # print_first(t._load_tar("protein-control.tar.gz"))
-    print(len(t.train_ls))
-    print(len(t.test_ls))
-    print(t.train_ls[:10])
-    print(t.test_ls[:10])
-    print(len(t.control_ls))
-    print(len(t.heme_ls))
-    print(len(t.nucleotide_ls))
-    print(len(t.steroid_ls))
+    # print(len(t.train_ls))
+    # print(len(t.test_ls))
+    # print(t.train_ls[:10])
+    # print(t.test_ls[:10])
+    # print(len(t.control_ls))
+    # print(len(t.heme_ls))
+    # print(len(t.nucleotide_ls))
+    # print(len(t.steroid_ls))
+
+    tp = TOUGH_POINT()
+    print(next(tp.train()))
+    print(next(tp.test()))
