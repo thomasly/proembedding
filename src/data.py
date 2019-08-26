@@ -147,6 +147,9 @@ class TOUGH_C1:
 
 
 class BatchGenerator:
+    """ Batch generator base class. Implement the _create_batch abstract method
+        to generate different data types.
+    """
 
     def __init__(self, data_ls, dataset, batch_size, if_shuffle=True):
         self.data_ls = data_ls
@@ -183,6 +186,8 @@ class BatchGenerator:
 
 
 class PointnetData(BatchGenerator):
+    """ Generate pointcloud data for PointNet architecture.
+    """
 
     def __init__(self,
                  data_ls,
@@ -191,11 +196,15 @@ class PointnetData(BatchGenerator):
                  pointcloud_len,
                  if_shuffle=True,
                  point_channels=3,
-                 label_len=1):
+                 label_len=1,
+                 resi_name_channel=False):
         super(PointnetData, self).__init__(
             data_ls, dataset, batch_size, if_shuffle)
         self.pointcloud_len = pointcloud_len
         self.point_channels = point_channels
+        if resi_name_channel:
+            self.point_channels += 1
+        self.resi_name_channel = resi_name_channel
         self.label_len = label_len
 
     def _create_batch(self):
@@ -217,8 +226,12 @@ class PointnetData(BatchGenerator):
             data = self.dataset[sample_id]
             pointcloud = np.zeros(
                 (self.pointcloud_len, self.point_channels), dtype=np.float32)
-            pointcloud[:data.loc[data.atom_name==1].shape[0]] = data.loc[
-                data.atom_name==1][["x", "y", "z"]]
+            if self.resi_name_channel:
+                pointcloud[:data.loc[data.atom_name==1].shape[0]] = data.loc[
+                    data.atom_name==1][["x", "y", "z", "residue_name"]]
+            else:
+                pointcloud[:data.loc[data.atom_name==1].shape[0]] = data.loc[
+                    data.atom_name==1][["x", "y", "z"]]
             point_sets[sample_counter] = pointcloud
             labels[sample_counter] = label
             sample_counter += 1
@@ -231,16 +244,19 @@ class TOUGH_POINT(TOUGH_C1):
                  batch_size=32,
                  pointcloud_len=1024,
                  random_seed=0,
-                 train_test_ratio=0.9):
+                 train_test_ratio=0.9,
+                 resi_name_channel=False):
         super(TOUGH_POINT, self).__init__(random_seed, train_test_ratio)
         self.batch_size = batch_size
         self.pointcloud_len = pointcloud_len
+        self.resi_name_channel = resi_name_channel
 
     def train(self):
         if self.dataset is None:
             self._load_dataset()
         train_set = PointnetData(
-            self.train_ls, self.dataset, self.batch_size, self.pointcloud_len)
+            self.train_ls, self.dataset, self.batch_size,
+            self.pointcloud_len, resi_name_channel=self.resi_name_channel)
         return train_set
 
     def test(self):
@@ -248,7 +264,8 @@ class TOUGH_POINT(TOUGH_C1):
             self._load_dataset()
         test_set = PointnetData(
             self.test_ls, self.dataset, self.batch_size,
-            self.pointcloud_len, if_shuffle=False
+            self.pointcloud_len, if_shuffle=False,
+            resi_name_channel=self.resi_name_channel
         )
         return test_set
 
@@ -274,7 +291,7 @@ if __name__ == "__main__":
     # print(len(t.nucleotide_ls))
     # print(len(t.steroid_ls))
 
-    tp = TOUGH_POINT()
+    tp = TOUGH_POINT(resi_name_channel=True)
     train, train_lb = next(tp.train())
     test, test_lb = next(tp.test())
     print("train shape:", train.shape)
@@ -284,4 +301,7 @@ if __name__ == "__main__":
     print("test shape:", test.shape)
     print("test label shape:", test_lb.shape)
     print("test avg:", np.mean(test, axis=1))
+
+    print("train set sample:", train[0][:10])
+    print("test set sample:", test[0][:10])
     
