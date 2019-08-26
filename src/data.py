@@ -105,8 +105,6 @@ class TOUGH_C1:
             atom_df.z = atom_df.z - atom_df.z.mean()
             pdb_info[name] = atom_df
         
-        print("resiName2int:", self.resiName2int)
-        print("atomName2int:", self.atomName2int)
         return pdb_info
 
     def _split_dataset(self, train_test_ratio):
@@ -219,14 +217,8 @@ class PointnetData(BatchGenerator):
             data = self.dataset[sample_id]
             pointcloud = np.zeros(
                 (self.pointcloud_len, self.point_channels), dtype=np.float32)
-            n_ca = 0
-            for atom in data:
-                if atom.atom_name.upper()=="CA":
-                    try:
-                        pointcloud[n_ca] = [atom.x, atom.y, atom.z]
-                        n_ca += 1
-                    except IndexError:
-                        break
+            pointcloud[:data.loc[data.atom_name==1].shape[0]] = data.loc[
+                data.atom_name==1][["x", "y", "z"]]
             point_sets[sample_counter] = pointcloud
             labels[sample_counter] = label
             sample_counter += 1
@@ -283,5 +275,13 @@ if __name__ == "__main__":
     # print(len(t.steroid_ls))
 
     tp = TOUGH_POINT()
-    print(next(tp.train()))
-    print(next(tp.test()))
+    train, train_lb = next(tp.train())
+    test, test_lb = next(tp.test())
+    print("train shape:", train.shape)
+    print("train label shape:", train_lb.shape)
+    print("train avg:", np.mean(train, axis=1))
+
+    print("test shape:", test.shape)
+    print("test label shape:", test_lb.shape)
+    print("test avg:", np.mean(test, axis=1))
+    
