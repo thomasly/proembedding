@@ -29,8 +29,12 @@ class TOUGH_C1:
         self.random_seed = random_seed
         self.train_ls, self.test_ls = self._split_dataset(train_test_ratio)
         self.dataset = None
+        self.resiName2int = dict()
+        self.atomName2int = dict()
         
     def _load_lst(self, path):
+        """ Load pdb file list from the lst files
+        """
         file_path = os.path.join(self.root, path)
         lb = self.label_dict[path.split(".")[0].split("_")[1]]
         Protein = namedtuple("protein", "label id")
@@ -43,12 +47,16 @@ class TOUGH_C1:
         return ret_ls
 
     def _load_tar(self, path):
+        """ Load pdb files from the .tar.gz files
+        """
         tar = tarfile.open(os.path.join(self.root, path))
         pdb_info = dict()
         Atom = namedtuple(
                     "atom",
                     "atom_id atom_name residue_id residue_name x y z"
                 )
+        resiNameIndex = len(self.resiName2int)
+        atomNameIndex = len(self.atomName2int)
         print(f"loading {path} ...")
         for pdb in tqdm(tar.getmembers()):
             if not pdb.isfile():
@@ -70,20 +78,40 @@ class TOUGH_C1:
                     continue
                 line = line.decode("utf-8")
                 atom_id = int(line[6:11])
-                atom_name = line[12:16].strip()
+                atom_name = line[12:16].strip().upper()
+                if atom_name in self.atomName2int.keys():
+                    atom_name = self.atomName2int[atom_name]
+                else:
+                    self.atomName2int[atom_name] = atomNameIndex
+                    atom_name = atomNameIndex
+                    atomNameIndex += 1
                 residue_id = int(line[22:26])
-                residue_name = line[17:20].strip()
+                residue_name = line[17:20].strip().upper()
+                if residue_name in self.resiName2int.keys():
+                    residue_name = self.resiName2int[residue_name]
+                else:
+                    self.resiName2int[residue_name] = resiNameIndex
+                    residue_name = resiNameIndex
+                    resiNameIndex += 1
                 x = float(line[30:38])
                 y = float(line[38:46])
                 z = float(line[46:54])
                 atom = Atom(
                     atom_id, atom_name, residue_id, residue_name, x, y, z)
                 atom_ls.append(atom)
-            pdb_info[name] = atom_ls
+            atom_df = pd.DataFrame(atom_ls, columns=Atom._fields)
+            atom_df.x = atom_df.x - atom_df.x.mean()
+            atom_df.y = atom_df.y - atom_df.y.mean()
+            atom_df.z = atom_df.z - atom_df.z.mean()
+            pdb_info[name] = atom_df
         
+        print("resiName2int:", self.resiName2int)
+        print("atomName2int:", self.atomName2int)
         return pdb_info
 
     def _split_dataset(self, train_test_ratio):
+        """ Split dataset into training and testing sets
+        """
         random.seed(self.random_seed)
         random.shuffle(self.control_ls)
         random.shuffle(self.heme_ls)
@@ -102,11 +130,16 @@ class TOUGH_C1:
         return train_ls, test_ls
 
     def _list_extend(self, train_ls, test_ls, target_ls, ratio):
+        """ Helper function extending the target_ls with the new train_ls and 
+            test_ls
+        """
         splitor = int(len(target_ls)*ratio)
         train_ls += target_ls[:splitor]
         test_ls += target_ls[splitor:]
 
     def _load_dataset(self):
+        """ Load the whole dataset from .tar.gz files
+        """
         self.dataset = dict()
         for p in ["protein-control.tar.gz",
                   "protein-heme.tar.gz",
@@ -138,7 +171,6 @@ class BatchGenerator:
     @abc.abstractmethod
     def _create_batch(self):
         raise NotImplementedError
-        
 
     def __iter__(self):
         self.counter = 0
@@ -169,6 +201,8 @@ class PointnetData(BatchGenerator):
         self.label_len = label_len
 
     def _create_batch(self):
+        """ Implementing _create_batch method
+        """
         batch_indices = range(
             self.counter*self.batch_size, min(
                 (self.counter+1)*self.batch_size, len(self.data_ls)))
