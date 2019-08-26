@@ -79,17 +79,17 @@ class TOUGH_C1:
                 line = line.decode("utf-8")
                 atom_id = int(line[6:11])
                 atom_name = line[12:16].strip().upper()
-                if atom_name in self.atomName2int.keys():
+                try:
                     atom_name = self.atomName2int[atom_name]
-                else:
+                except KeyError:
                     self.atomName2int[atom_name] = atomNameIndex
                     atom_name = atomNameIndex
                     atomNameIndex += 1
                 residue_id = int(line[22:26])
                 residue_name = line[17:20].strip().upper()
-                if residue_name in self.resiName2int.keys():
+                try:
                     residue_name = self.resiName2int[residue_name]
-                else:
+                except KeyError:
                     self.resiName2int[residue_name] = resiNameIndex
                     residue_name = resiNameIndex
                     resiNameIndex += 1
