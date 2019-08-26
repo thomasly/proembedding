@@ -3,6 +3,7 @@ from collections import namedtuple
 import tarfile
 import random
 import abc
+import pickle as pk
 
 import numpy as np
 import pandas as pd
@@ -13,6 +14,7 @@ class TOUGH_C1:
     def __init__(self, random_seed=0, train_test_ratio=0.9):
         # root path of the TOUGH-C1 data
         self.root = os.path.join(os.path.pardir, "data", "osfstorage-archive")
+        self.bin = os.path.join(os.path.pardir, "bin")
         # dict for label generation
         self.label_dict = {
             "control": 0,
@@ -138,12 +140,19 @@ class TOUGH_C1:
     def _load_dataset(self):
         """ Load the whole dataset from .tar.gz files
         """
-        self.dataset = dict()
-        for p in ["protein-control.tar.gz",
-                  "protein-heme.tar.gz",
-                  "protein-nucleotide.tar.gz",
-                  "protein-steroid.tar.gz"]:
-            self.dataset.update(self._load_tar(p))
+        pointnet_data_path = os.path.join(self.bin, "pointnet_data")
+        try:
+            with open(pointnet_data_path, "rb") as f:
+                self.dataset = pk.load(f)
+        except FileNotFoundError:
+            self.dataset = dict()
+            for p in ["protein-control.tar.gz",
+                    "protein-heme.tar.gz",
+                    "protein-nucleotide.tar.gz",
+                    "protein-steroid.tar.gz"]:
+                self.dataset.update(self._load_tar(p))
+            with open(pointnet_data_path, "wb") as f:
+                pk.dump(self.dataset, f)
 
 
 class BatchGenerator:
