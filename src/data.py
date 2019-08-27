@@ -254,7 +254,7 @@ class PointnetData(BatchGenerator):
         return point_sets, labels
 
 
-class TOUGH_POINT(TOUGH_C1):
+class TOUGH_Point(TOUGH_C1):
 
     def __init__(self,
                  batch_size=32,
@@ -262,7 +262,7 @@ class TOUGH_POINT(TOUGH_C1):
                  random_seed=0,
                  train_test_ratio=0.9,
                  resi_name_channel=False):
-        super(TOUGH_POINT, self).__init__(random_seed, train_test_ratio)
+        super(TOUGH_Point, self).__init__(random_seed, train_test_ratio)
         self.batch_size = batch_size
         self.pointcloud_len = pointcloud_len
         self.resi_name_channel = resi_name_channel
@@ -306,6 +306,8 @@ class TOUGH_POINT(TOUGH_C1):
             return self._test_steps
 
 
+class TOUGH_POCKET()
+
 if __name__ == "__main__":
     # def print_first(d):
     #     key = list(d.keys())[0]
@@ -327,7 +329,7 @@ if __name__ == "__main__":
     # print(len(t.nucleotide_ls))
     # print(len(t.steroid_ls))
 
-    tp = TOUGH_POINT(resi_name_channel=True)
+    tp = TOUGH_Point(resi_name_channel=True)
     # train, train_lb = next(tp.train())
     # test, test_lb = next(tp.test())
     # print("train shape:", train.shape)

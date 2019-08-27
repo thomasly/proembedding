@@ -10,7 +10,7 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, MaxPool2D, Dense
 import numpy as np
 
-from data import TOUGH_POINT
+from data import TOUGH_Point
 
 
 class PointNet(Model):
@@ -48,7 +48,7 @@ def train():
     args = parse_argv(sys.argv[1:])
     resi_name_channel = args.resi_channel
     batch_size = args.batch_size
-    tp = TOUGH_POINT(batch_size=batch_size,
+    tp = TOUGH_Point(batch_size=batch_size,
                      resi_name_channel=resi_name_channel)
     n_channels = 4 if resi_name_channel else 3
     model = PointNet(channels=n_channels)
