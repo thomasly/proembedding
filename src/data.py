@@ -177,6 +177,7 @@ class BatchGenerator:
             return self._create_batch()
         else:
             self._reset()
+            return self._create_batch()
 
     @abc.abstractmethod
     def _create_batch(self):
@@ -223,7 +224,8 @@ class PointnetData(BatchGenerator):
             self.counter*self.batch_size, min(
                 (self.counter+1)*self.batch_size, len(self.data_ls)))
         point_sets = np.zeros(
-            shape=(self.batch_size, self.pointcloud_len, self.point_channels),
+            shape=(
+                self.batch_size, self.pointcloud_len, self.point_channels, 1),
             dtype=np.float32
         )
         labels = np.zeros(
@@ -234,13 +236,18 @@ class PointnetData(BatchGenerator):
             label = self.data_ls[i].label
             data = self.dataset[sample_id]
             pointcloud = np.zeros(
-                (self.pointcloud_len, self.point_channels), dtype=np.float32)
+                (self.pointcloud_len, self.point_channels, 1),
+                dtype=np.float32)
             if self.resi_name_channel:
-                pointcloud[:data.loc[data.atom_name==1].shape[0]] = data.loc[
-                    data.atom_name==1][["x", "y", "z", "residue_name"]]
+                pointcloud[:data.loc[data.atom_name==1].shape[0]] = \
+                    np.expand_dims(
+                        data.loc[data.atom_name==1][[
+                            "x", "y", "z", "residue_name"]].values, -1)
             else:
-                pointcloud[:data.loc[data.atom_name==1].shape[0]] = data.loc[
-                    data.atom_name==1][["x", "y", "z"]]
+                pointcloud[:data.loc[data.atom_name==1].shape[0]] = \
+                    np.expand_dims(
+                        data.loc[data.atom_name==1][[
+                            "x", "y", "z"]].values, -1)
             point_sets[sample_counter] = pointcloud
             labels[sample_counter] = label
             sample_counter += 1
@@ -266,7 +273,9 @@ class TOUGH_POINT(TOUGH_C1):
         train_set = PointnetData(
             self.train_ls, self.dataset, self.batch_size,
             self.pointcloud_len, resi_name_channel=self.resi_name_channel)
-        return train_set
+        self._train_steps = train_set.n_batch
+        for point_sets, labels in train_set:
+            yield (point_sets, labels)
 
     def test(self):
         if self.dataset is None:
@@ -276,7 +285,25 @@ class TOUGH_POINT(TOUGH_C1):
             self.pointcloud_len, if_shuffle=False,
             resi_name_channel=self.resi_name_channel
         )
-        return test_set
+        self._test_steps = test_set.n_batch
+        for point_sets, labels in test_set:
+            yield (point_sets, labels)
+
+    @property
+    def train_steps(self):
+        try:
+            return self._train_steps
+        except AttributeError:
+            next(self.train())
+            return self._train_steps
+
+    @property
+    def test_steps(self):
+        try:
+            return self._test_steps
+        except AttributeError:
+            next(self.test())
+            return self._test_steps
 
 
 if __name__ == "__main__":
@@ -301,16 +328,18 @@ if __name__ == "__main__":
     # print(len(t.steroid_ls))
 
     tp = TOUGH_POINT(resi_name_channel=True)
-    train, train_lb = next(tp.train())
-    test, test_lb = next(tp.test())
-    print("train shape:", train.shape)
-    print("train label shape:", train_lb.shape)
-    print("train avg:", np.mean(train, axis=1))
+    # train, train_lb = next(tp.train())
+    # test, test_lb = next(tp.test())
+    # print("train shape:", train.shape)
+    # print("train label shape:", train_lb.shape)
+    # print("train avg:", np.mean(train, axis=1))
 
-    print("test shape:", test.shape)
-    print("test label shape:", test_lb.shape)
-    print("test avg:", np.mean(test, axis=1))
+    # print("test shape:", test.shape)
+    # print("test label shape:", test_lb.shape)
+    # print("test avg:", np.mean(test, axis=1))
 
-    print("train set sample:", train[0][:10])
-    print("test set sample:", test[0][:10])
-    
+    # print("train set sample:", train[0][:10])
+    # print("test set sample:", test[0][:10])
+    for i in tp.train():
+        print(i[0].shape)
+
