@@ -10,7 +10,7 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, MaxPool2D, Dense
 import numpy as np
 
-from data import TOUGH_Point
+from data import TOUGH_Point_Pocket
 
 
 class PointNet(Model):
@@ -41,16 +41,25 @@ def parse_argv(argv=None):
                         action="store_true")
     parser.add_argument("-b", "--batch-size", type=int, default=32,
                         help="Size of mini batch.")
+    parser.add_argument("-a", "--atom-channel",
+                        help="If to use atom channel in the input.",
+                        action="store_true")
     return parser.parse_args(argv)
 
 
 def train():
     args = parse_argv(sys.argv[1:])
     resi_name_channel = args.resi_channel
+    atom_name_channel = args.atom_channel
     batch_size = args.batch_size
-    tp = TOUGH_Point(batch_size=batch_size,
-                     resi_name_channel=resi_name_channel)
-    n_channels = 4 if resi_name_channel else 3
+    tp = TOUGH_Point_Pocket(batch_size=batch_size,
+                     resi_name_channel=resi_name_channel,
+                     atom_name_channel=atom_name_channel)
+    n_channels = 3
+    if resi_name_channel:
+        n_channels += 1
+    if atom_name_channel:
+        n_channels += 1
     model = PointNet(channels=n_channels)
     model.compile(optimizer="adam",
                   loss="binary_crossentropy",
