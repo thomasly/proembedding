@@ -72,7 +72,7 @@ class PointnetData(BatchGenerator):
         self.label_len = label_len
 
     def _one_hot(self, index):
-        onehot = [0] * 4
+        onehot = [0] * self.label_len
         onehot[index] = 1
         return onehot
 
@@ -92,7 +92,7 @@ class PointnetData(BatchGenerator):
         sample_counter = 0
         for i in batch_indices:
             sample_id = self.data_ls[i].id
-            label = self._one_hot(self.data_ls[i].label)
+            label = self._one_hot(min(self.label_len-1, self.data_ls[i].label))
             data = self.dataset[sample_id]
             pointcloud = np.zeros(
                 (self.pointcloud_len, self.point_channels, 1),
@@ -155,7 +155,7 @@ class PointnetPocketData(PointnetData):
         sample_counter = 0
         for i in batch_indices:
             sample_id = self.data_ls[i].id
-            label = self._one_hot(self.data_ls[i].label)
+            label = self._one_hot(min(self.label_len-1, self.data_ls[i].label))
             data = self.dataset[sample_id]
             pocket_residues = self.pockets[sample_id]
             pointcloud = np.zeros(
@@ -377,7 +377,8 @@ class TOUGH_Point(TOUGH_C1):
         test_set = PointnetData(
             self.test_ls, self.dataset, self.batch_size,
             self.pointcloud_len, if_shuffle=False,
-            resi_name_channel=self.resi_name_channel
+            resi_name_channel=self.resi_name_channel,
+            label_len=self.label_len
         )
         self._test_steps = test_set.n_batch
         for point_sets, labels in test_set:
@@ -458,7 +459,7 @@ class TOUGH_Point_Pocket(TOUGH_Point):
         train_set = PointnetPocketData(
             self.train_ls, self.dataset, self.pockets, self.batch_size,
             self.pointcloud_len, atom_name_channel=self.atom_name_channel,
-            resi_name_channel=self.resi_name_channel)
+            resi_name_channel=self.resi_name_channel, label_len=self.label_len)
         self._train_steps = train_set.n_batch
         for point_sets, labels in train_set:
             yield (point_sets, labels)
@@ -472,7 +473,8 @@ class TOUGH_Point_Pocket(TOUGH_Point):
             self.test_ls, self.dataset, self.pockets, self.batch_size,
             self.pointcloud_len, if_shuffle=False,
             atom_name_channel=self.atom_name_channel,
-            resi_name_channel=self.resi_name_channel
+            resi_name_channel=self.resi_name_channel,
+            label_len=self.label_len
         )
         self._test_steps = test_set.n_batch
         for point_sets, labels in test_set:
@@ -516,7 +518,7 @@ if __name__ == "__main__":
     # for i in tp.train():
     #     print(i[0].shape)
 
-    tpp = TOUGH_Point_Pocket(resi_name_channel=True, atom_name_channel=True, subset="heme")
+    tpp = TOUGH_Point_Pocket(resi_name_channel=True, atom_name_channel=True, subset="nucleotide", label_len=2)
     train_batch, labels = next(tpp.train())
     print("shape:", train_batch.shape)
     # print("train avg:", np.mean(train_batch, axis=1))
