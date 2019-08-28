@@ -8,7 +8,7 @@ import tensorflow as tf
 from tensorflow.python.ops import array_ops
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, MaxPool2D, Dense
-from tensorflow.keras.layers import BatchNormalization
+from tensorflow.keras.layers import BatchNormalization, Flatten
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import TensorBoard, LearningRateScheduler
 import numpy as np
@@ -26,6 +26,7 @@ class PointNet(Model):
         self.conv2d_64_128 = Conv2D(128, (1, 64), activation="relu")
         self.conv2d_128_1024 = Conv2D(1024, (1, 128), activation="relu")
         self.maxpool = MaxPool2D((1, 1024))
+        self.flatten = Flatten()
         self.dense_512 = Dense(512, activation="relu")
         self.dense_256 = Dense(256, activation="relu")
         self.dense_output = Dense(classes, activation="softmax")
@@ -43,6 +44,7 @@ class PointNet(Model):
         x = self.conv2d_128_1024(x) # batch_size x pc_len x 1 x 1024
         x = tf.transpose(x, self.perm) # batch_size x pc_len x 1024 x 1
         x = self.maxpool(x) # batch_size x pc_len x 1 x 1
+        x = self.flatten(x)
         x = self.dense_512(x)
         x = self.dense_256(x)
         x = self.dense_output(x)
@@ -82,7 +84,7 @@ def train():
     tp = TOUGH_Point_Pocket(batch_size=batch_size,
                      resi_name_channel=resi_name_channel,
                      atom_name_channel=atom_name_channel,
-                     subset=subset) 
+                     subset=subset, label_len=classes) 
     # load model
     n_channels = 3
     if resi_name_channel:
