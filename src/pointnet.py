@@ -61,6 +61,11 @@ def parse_argv(argv=None):
                         action="store_true")
     parser.add_argument("-e", "--epoch", default=10, type=int,
                         help="Number of training epochs")
+    parser.add_argument("-c", "--classes", default=4, type=int,
+                        help="Number of classes (default = 4)")
+    parser.add_argument("-s", "--subset", default=None,
+                        help="Subset used in training. Default is the whole \
+                            TOUGH-C1 dataset. Options: nucleotide, heme")
     return parser.parse_args(argv)
 
 
@@ -71,17 +76,20 @@ def train():
     atom_name_channel = args.atom_channel
     epochs = args.epoch
     batch_size = args.batch_size
+    classes = args.classes
+    subset = args.subset
     # dataset
     tp = TOUGH_Point_Pocket(batch_size=batch_size,
                      resi_name_channel=resi_name_channel,
-                     atom_name_channel=atom_name_channel) 
+                     atom_name_channel=atom_name_channel,
+                     subset=subset) 
     # load model
     n_channels = 3
     if resi_name_channel:
         n_channels += 1
     if atom_name_channel:
         n_channels += 1
-    model = PointNet(channels=n_channels)
+    model = PointNet(channels=n_channels, classes=classes)
     optimizer = Adam(0.001, decay=0.5, clipvalue=1e-5)
     tb_callback = TensorBoard()
     model.compile(optimizer=optimizer,
