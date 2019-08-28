@@ -201,12 +201,12 @@ class TOUGH_C1:
         self.heme_ls = self._load_lst("deepdrug3d_heme.lst")
         self.nucleotide_ls = self._load_lst("deepdrug3d_nucleotide.lst")
         self.steroid_ls = self._load_lst("deepdrug3d_steroid.lst")
-        # create training and testing sets
-        self.random_seed = random_seed
-        self.train_ls, self.test_ls = self._split_dataset(train_test_ratio)
         if subset not in [None, "nucleotide", "heme"]:
             raise AssertionError("subset argument is not valid.")
         self.subset = subset
+        # create training and testing sets
+        self.random_seed = random_seed
+        self.train_ls, self.test_ls = self._split_dataset(train_test_ratio)
         self.dataset = None
         self.resiName2int = dict()
         self.atomName2int = dict()
@@ -512,7 +512,7 @@ if __name__ == "__main__":
     # for i in tp.train():
     #     print(i[0].shape)
 
-    tpp = TOUGH_Point_Pocket(resi_name_channel=True, atom_name_channel=True)
+    tpp = TOUGH_Point_Pocket(resi_name_channel=True, atom_name_channel=True, subset="heme")
     train_batch, labels = next(tpp.train())
     print("shape:", train_batch.shape)
     # print("train avg:", np.mean(train_batch, axis=1))
