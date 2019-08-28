@@ -9,6 +9,8 @@ from tensorflow.python.ops import array_ops
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Conv2D, MaxPool2D, Dense
 from tensorflow.keras.layers import BatchNormalization
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import TensorBoard, LearningRateScheduler
 import numpy as np
 
 from data import TOUGH_Point_Pocket
@@ -57,32 +59,42 @@ def parse_argv(argv=None):
     parser.add_argument("-a", "--atom-channel",
                         help="If to use atom channel in the input.",
                         action="store_true")
+    parser.add_argument("-e", "--epoch", default=10, type=int,
+                        help="Number of training epochs")
     return parser.parse_args(argv)
 
 
 def train():
+    # training args
     args = parse_argv(sys.argv[1:])
     resi_name_channel = args.resi_channel
     atom_name_channel = args.atom_channel
+    epochs = args.epoch
     batch_size = args.batch_size
+    # dataset
     tp = TOUGH_Point_Pocket(batch_size=batch_size,
                      resi_name_channel=resi_name_channel,
-                     atom_name_channel=atom_name_channel)
+                     atom_name_channel=atom_name_channel) 
+    # load model
     n_channels = 3
     if resi_name_channel:
         n_channels += 1
     if atom_name_channel:
         n_channels += 1
     model = PointNet(channels=n_channels)
-    model.compile(optimizer="adam",
+    optimizer = Adam(0.001, decay=0.5, clipvalue=1e-5)
+    tb_callback = TensorBoard()
+    model.compile(optimizer=optimizer,
                   loss="binary_crossentropy",
                   metrics=["accuracy", "mse"])
+    # training
     model.fit_generator(
         generator=tp.train(),
         steps_per_epoch=tp.train_steps,
-        epochs=10
+        epochs=epochs,
+        callbacks=[tb_callback]
     )
-    print(model.summary())
+
 
 if __name__ == "__main__":
     train()
