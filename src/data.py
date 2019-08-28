@@ -184,7 +184,8 @@ class PointnetPocketData(PointnetData):
 
 class TOUGH_C1:
 
-    def __init__(self, random_seed=0, train_test_ratio=0.9):
+    def __init__(self, random_seed=0, train_test_ratio=0.9,
+                 subset=None):
         # root path of the TOUGH-C1 data
         self.root = os.path.join(os.path.pardir, "data", "osfstorage-archive")
         self.bin = os.path.join(os.path.pardir, "bin")
@@ -203,6 +204,9 @@ class TOUGH_C1:
         # create training and testing sets
         self.random_seed = random_seed
         self.train_ls, self.test_ls = self._split_dataset(train_test_ratio)
+        if subset not in [None, "nucleotide", "heme"]:
+            raise AssertionError("subset argument is not valid.")
+        self.subset = subset
         self.dataset = None
         self.resiName2int = dict()
         self.atomName2int = dict()
@@ -287,17 +291,28 @@ class TOUGH_C1:
         """
         random.seed(self.random_seed)
         random.shuffle(self.control_ls)
-        random.shuffle(self.heme_ls)
-        random.shuffle(self.nucleotide_ls)
-        random.shuffle(self.steroid_ls)
-
         train_ls = list()
         test_ls = list()
         self._list_extend(train_ls, test_ls, self.control_ls, train_test_ratio)
-        self._list_extend(train_ls, test_ls, self.heme_ls, train_test_ratio)
-        self._list_extend(
-            train_ls, test_ls, self.nucleotide_ls, train_test_ratio)
-        self._list_extend(train_ls, test_ls, self.steroid_ls, train_test_ratio)
+        if self.subset is None:
+            random.shuffle(self.heme_ls)
+            random.shuffle(self.nucleotide_ls)
+            random.shuffle(self.steroid_ls)
+            self._list_extend(
+                train_ls, test_ls, self.heme_ls, train_test_ratio)
+            self._list_extend(
+                train_ls, test_ls, self.nucleotide_ls, train_test_ratio)
+            self._list_extend(
+                train_ls, test_ls, self.steroid_ls, train_test_ratio)
+        elif self.subset == "nucleotide":
+            random.shuffle(self.nucleotide_ls)
+            self._list_extend(
+                train_ls, test_ls, self.nucleotide_ls, train_test_ratio)
+        elif self.subset == "heme":
+            random.shuffle(self.heme_ls)
+            self._list_extend(
+                train_ls, test_ls, self.heme_ls, train_test_ratio)
+        
         random.shuffle(train_ls)
         random.shuffle(test_ls)
         return train_ls, test_ls
