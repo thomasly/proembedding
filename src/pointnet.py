@@ -102,6 +102,8 @@ def train():
         generator=tp.train(),
         steps_per_epoch=tp.train_steps,
         epochs=epochs,
+        validation_data=tp.test(),
+        validation_steps=tp.test_steps,
         callbacks=[tb_callback]
     )
 
