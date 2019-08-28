@@ -335,18 +335,21 @@ class TOUGH_Point(TOUGH_C1):
                  pointcloud_len=1024,
                  random_seed=0,
                  train_test_ratio=0.9,
-                 resi_name_channel=False):
+                 resi_name_channel=False,
+                 label_len=4):
         super(TOUGH_Point, self).__init__(random_seed, train_test_ratio)
         self.batch_size = batch_size
         self.pointcloud_len = pointcloud_len
         self.resi_name_channel = resi_name_channel
+        self.label_len = label_len
 
     def train(self):
         if self.dataset is None:
             self._load_dataset()
         train_set = PointnetData(
             self.train_ls, self.dataset, self.batch_size,
-            self.pointcloud_len, resi_name_channel=self.resi_name_channel)
+            self.pointcloud_len, resi_name_channel=self.resi_name_channel,
+            label_len=self.label_len)
         self._train_steps = train_set.n_batch
         for point_sets, labels in train_set:
             yield (point_sets, labels)
@@ -389,10 +392,11 @@ class TOUGH_Point_Pocket(TOUGH_Point):
                  train_test_ratio=0.9,
                  resi_name_channel=False,
                  atom_name_channel=False,
+                 label_len=4,
                  pocket_type="lpc"):
         super(TOUGH_Point_Pocket, self).__init__(
             batch_size, pointcloud_len, random_seed, train_test_ratio,
-            resi_name_channel)
+            resi_name_channel, label_len)
         self.atom_name_channel = atom_name_channel
         self.pocket_type = pocket_type
         self.pockets = None
