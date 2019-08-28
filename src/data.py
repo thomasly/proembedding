@@ -350,8 +350,10 @@ class TOUGH_Point(TOUGH_C1):
                  pointcloud_len=1024,
                  random_seed=0,
                  train_test_ratio=0.9,
+                 subset=None,
                  resi_name_channel=False):
-        super(TOUGH_Point, self).__init__(random_seed, train_test_ratio)
+        super(TOUGH_Point, self).__init__(
+            random_seed, train_test_ratio, subset)
         self.batch_size = batch_size
         self.pointcloud_len = pointcloud_len
         self.resi_name_channel = resi_name_channel
@@ -402,12 +404,13 @@ class TOUGH_Point_Pocket(TOUGH_Point):
                  pointcloud_len=1024,
                  random_seed=0,
                  train_test_ratio=0.9,
+                 subset=None,
                  resi_name_channel=False,
                  atom_name_channel=False,
                  pocket_type="lpc"):
         super(TOUGH_Point_Pocket, self).__init__(
             batch_size, pointcloud_len, random_seed, train_test_ratio,
-            resi_name_channel)
+            subset, resi_name_channel)
         self.atom_name_channel = atom_name_channel
         self.pocket_type = pocket_type
         self.pockets = None
