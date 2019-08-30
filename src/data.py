@@ -407,7 +407,7 @@ class TOUGH_Point_Pocket(TOUGH_Point):
                  batch_size=32,
                  pointcloud_len=1024,
                  random_seed=0,
-                 train_test_ratio=0.9,
+                 train_test_ratio=0.7,
                  subset=None,
                  resi_name_channel=False,
                  atom_name_channel=False,
@@ -520,8 +520,11 @@ if __name__ == "__main__":
 
     tpp = TOUGH_Point_Pocket(resi_name_channel=True, atom_name_channel=True, subset="nucleotide", label_len=2)
     train_batch, labels = next(tpp.train())
-    print("shape:", train_batch.shape)
-    # print("train avg:", np.mean(train_batch, axis=1))
-    print("labels:", labels.shape)
+    test_batch, test_labels = next(tpp.test())
+    print("train shape:", train_batch.shape)
+    print("train labels:", labels.shape)
     print(labels)
+    print("test shape:", test_batch.shape)
+    print("test labels:", test_labels.shape)
+    print(test_labels)
 
