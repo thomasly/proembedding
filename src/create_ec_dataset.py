@@ -3,10 +3,11 @@ import random
 import pickle as pk
 
 import pandas as pd
+import numpy as np
 from scipy.sparse import csr_matrix
 from tqdm import tqdm
 tqdm.pandas()
-import markov_clustering as mc
+# import markov_clustering as mc
 
 def get_pdb_id(name):
     if name.startswith("d"):
@@ -96,6 +97,51 @@ def write_abc_file(test=False):
         abc_f.write(r+"\t"+c+"\t"+str(d)+"\n")
     print("Done.")
     abc_f.close()
+
+
+def create_cluster_dict(cluster_f):
+    with open(cluster_f, "r") as f:
+        clusters = f.readlines()
+    cluster_dict = dict()
+    idx = 0
+    for line in clusters:
+        if len(line) < 4:
+            continue
+        pdbs = line.strip().split()
+        for pdb in pdbs:
+            cluster_dict[pdb] = idx
+        idx += 1
+    return cluster_dict
+
+
+def ec_cluster_from_csv(cluster_dict):
+    ec_df = pd.read_csv("../data/Enzyme/Structure_EC_benchmark.csv")
+    ec_clusters = list()
+    cluster_ids = list()
+    labels = dict()
+    extra_cluster = 0
+    for _, row in ec_df.iterrows():
+        if int(row["Chain Length"]) < 30:
+            continue
+        if str(row["EC No"]) != "nan":
+            label = 1
+        else:
+            label = 0
+        pdb_id = row["PDB ID"]
+        labels[pdb_id] = label
+        try:
+            cluster_id = cluster_dict[pdb_id]
+        except KeyError:
+            cluster_id = len(cluster_dict) + extra_cluster
+            extra_cluster += 1
+        if cluster_id not in cluster_ids:
+            cluster_ids.append(cluster_id)
+            ec_clusters.append(set([pdb_id]))
+        else:
+            ec_idx = cluster_ids.index(cluster_id)
+            ec_clusters[ec_idx].add(pdb_id)
+    return ec_clusters, labels
+
 
 
 if __name__ == "__main__":
