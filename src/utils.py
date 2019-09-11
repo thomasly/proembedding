@@ -1,4 +1,5 @@
 import os
+from collections import namedtuple
 
 from tqdm import tqdm
 import freesasa as fs
@@ -52,7 +53,7 @@ class GraphCreator:
 
         starting_number = 1
         pdb_idx = 1
-        for pdb in tqdm(pdb_file_list):
+        for pdb in tqdm(self.pdb_file_list):
             if not (pdb.endswith(".pdb") or pdb.endswith(".cif")):
                 continue
             try:
