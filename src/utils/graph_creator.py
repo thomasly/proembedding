@@ -2,6 +2,7 @@ import os
 from collections import namedtuple
 
 from tqdm import tqdm
+import numpy as np
 import freesasa as fs
 
 
@@ -60,9 +61,13 @@ class GraphCreator:
                 pdb_id = os.path.basename(pdb).split(".")[0].upper()
                 label = self.graph_label_dict[pdb_id]
             except KeyError:
+                print(f"{pdb_id} label not found.")
                 continue
             pdb_pfh = PDBtoPFH(pdb, cutoff=cutoff)
-            pdb_pfh.get_attributes()  
+            try:
+                pdb_pfh.get_attributes()
+            except AssertionError:
+                continue
             a.write(self.get_adjacency_matrix(pdb_pfh, starting_number))
             idc.write((str(pdb_idx)+"\n")*len(pdb_pfh.all_ca))
             g_label.write(str(label)+"\n")
@@ -117,7 +122,10 @@ class PDBtoPFH():
         # calculate solvent access data
         self.solvent_access = fs.calc(fs.Structure(self.file_path))
         self._clean_data()
-        self._ca_attributes()
+        try:
+            self._ca_attributes()
+        except AssertionError:
+            raise
         self._distance_to_others()
         self._find_in_range()
 
@@ -195,7 +203,11 @@ class PDBtoPFH():
 
     # ### calculate the "surface norms" of all the C-alpha
     def _calculate_norms(self):
-        assert(len(self.all_ca)==len(self.all_c))
+        try:
+            assert(len(self.all_ca)==len(self.all_c))
+        except AssertionError:
+            print(f"{self.file_path} has different numbers of Ca and C.")
+            raise
         all_ca = np.array(self.all_ca, dtype=np.float32)
         all_c = np.array(self.all_c, dtype=np.float32)
         self.norms = all_c - all_ca
@@ -203,7 +215,10 @@ class PDBtoPFH():
     def _ca_attributes(self):
         self._get_ca()
         self._get_c()
-        self._calculate_norms()
+        try:
+            self._calculate_norms()
+        except AssertionError:
+            raise
         self.ca_attributes = [
             ca + list(sf) + [resi_type] + [solv] for \
                 ca, sf, resi_type, solv in zip(

@@ -6,11 +6,11 @@ import pandas as pd
 from utils import GraphCreator
 
 
-def create_file_list(path="../data/Enzyme/PDB"):
+def create_file_list(path="../data/Enzyme/EC_PDB"):
     entries = os.scandir(path)
     file_list = list()
     for e in entries:
-        if e.is_file and (e.name.endswith(".pdb") or e.name.endswith(".cif")):
+        if e.is_file and e.name.endswith(".pdb"):
             file_list.append(e.path)
         elif e.is_dir:
             sub_list = create_file_list(e.path)
