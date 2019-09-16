@@ -13,12 +13,12 @@ class PDB2Grid:
         self.pdb = PDB(pdb_f)
 
 
-    @staticmethod
-    def density_function(radius):
-        if radius <= 2:
-            return math.exp(-radius**2/2)
-        else:
-            return 0.0
+    # @staticmethod
+    # def density_function(radius):
+    #     if radius <= 2:
+    #         return math.exp(-radius**2/2)
+    #     else:
+    #         return 0.0
 
     def create_grid(self, dimension, channel=1):
         return np.array(
@@ -65,7 +65,18 @@ class PDB2Grid:
         pass
 
     def get_pocket_ca_grid(self, pocket_residues: list, dimension=33):
-        pass
+        grid = np.zeros((dimension, dimension, dimension), dtype=np.float16)
+        cas = self.pdb.get_ca()
+        pocket_ca = list()
+        for ca in cas:
+            if ca.resi_id in pocket_residues:
+                pocket_ca.append(ca)
+        normed_coor = self.normalize(pocket_ca)
+        for idx in range(normed_coor.shape[0]):
+            coor = normed_coor[idx]
+            atom_in_grid = self.put_atom_to_grid(coor, dimension)
+            grid += atom_in_grid
+        return grid
 
     def get_pocket_ca_res_grid(self, pocket_residues: list, dimension=33):
         pass
@@ -80,8 +91,8 @@ class PDB2Grid:
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
-    p = PDB2Grid("../../data/Enzyme/EC_PDB/2rig.pdb")
-    ca_grid = p.get_ca_grid()
+    p = PDB2Grid("../../data/tough_c1/protein-control/5c11A.pdb")
+    ca_grid = p.get_pocket_ca_grid([18, 19, 20, 22, 28, 41, 42, 43, 44, 45, 46])
     z,x,y = ca_grid.nonzero()
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
