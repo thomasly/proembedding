@@ -4,7 +4,7 @@ from collections import namedtuple
 
 import numpy as np
 
-from read_pdb import PDB
+from .read_pdb import PDB
 
 
 class PDB2Grid:
