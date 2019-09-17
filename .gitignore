@@ -3,6 +3,7 @@ notebook/
 
 # running logs
 src/logs
+src/training_logs
 
 # vs code settings
 .vscode/
