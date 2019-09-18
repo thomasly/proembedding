@@ -56,6 +56,7 @@ class PDB2Grid:
             coor = normed_coor[idx]
             atom_in_grid = self.put_atom_to_grid(coor, dimension)
             grid += atom_in_grid
+        grid = np.expand_dims(grid, 0)
         return grid
     
     def get_ca_res_grid(self, dimension=33):
@@ -76,10 +77,26 @@ class PDB2Grid:
             coor = normed_coor[idx]
             atom_in_grid = self.put_atom_to_grid(coor, dimension)
             grid += atom_in_grid
+        grid = np.expand_dims(grid, 0)
         return grid
 
     def get_pocket_ca_res_grid(self, pocket_residues: list, dimension=33):
-        pass
+        grid = np.zeros(
+            (20, dimension, dimension, dimension),
+            dtype=np.float16)
+        cas = self.pdb.get_ca()
+        pocket_ca = list()
+        pocket_resi = list()
+        for ca in cas:
+            if ca.resi_id in pocket_residues:
+                pocket_ca.append(ca)
+                pocket_resi.append(PDB.resi2int(ca.resi_name))
+        normed_coor = self.normalize(pocket_ca)
+        for idx in range(normed_coor.shape[0]):
+            coor = normed_coor[idx]
+            atom_in_grid = self.put_atom_to_grid(coor, dimension)
+            grid[pocket_resi[idx]] += atom_in_grid
+        return grid
 
     def get_pocket_all_atom_grid(self, pocket_residues: list, dimension=33):
         pass

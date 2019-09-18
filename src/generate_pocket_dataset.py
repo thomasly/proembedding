@@ -31,13 +31,18 @@ if __name__ == "__main__":
     residue_dic = create_residue_dict(residue_file)
     pdb_files = os.scandir(pdb_folder)
     grids = dict()
+    grids_resi = dict()
     for pdb_f in tqdm(list(pdb_files)):
         if not pdb_f.name.endswith(".pdb"):
             continue
         pdb_id = pdb_f.name.split(".")[0]
         pdb = PDB2Grid(pdb_f.path)
         pocket_grid = pdb.get_pocket_ca_grid(residue_dic[pdb_id])
+        pocket_resi_grid = pdb.get_pocket_ca_res_grid(residue_dic[pdb_id])
         grids[pdb_id] = pocket_grid
+        grids_resi[pdb_id] = pocket_resi_grid
     with open(os.path.join(data_path, args.set+"-pocket.grids"), "wb") as f:
         pk.dump(grids, f)
-    
+    with open(os.path.join(data_path, args.set+"-pocket.resigrids"),
+              "wb") as f:
+        pk.dump(grids_resi, f)

@@ -11,6 +11,7 @@ from tensorflow.keras.layers import Dense, Activation, Convolution3D
 from tensorflow.keras.layers import MaxPooling3D, Dropout, Flatten
 from tensorflow.keras.layers import LeakyReLU
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.utils import to_categorical
 import numpy as np
 from tqdm import tqdm
 
@@ -20,8 +21,8 @@ np.random.seed(seed)
 
 class DeepDrug3DBuilder(object):
     """DeepDrug3D network
-    Ouput: a model takes a 5D tensor as input and outpus probabilities of the pocket binds to 
-    ATP and Heme.
+    Ouput: a model takes a 5D tensor as input and outpus probabilities of the 
+    pocket binds to ATP and Heme.
     """
     @staticmethod
     def build(classes=1):
@@ -31,8 +32,8 @@ class DeepDrug3DBuilder(object):
             # input_shape = (33, 33, 33, 1),
             filters=64,
             kernel_size=5,
-            padding='valid'    # Padding method
-            # data_format='channels_first',
+            padding='valid',    # Padding method
+            data_format='channels_first'
         ))
         model.add(LeakyReLU(alpha = 0.1))
         # Dropout 1
@@ -41,16 +42,16 @@ class DeepDrug3DBuilder(object):
         model.add(Convolution3D(
             filters=64,
             kernel_size=3,
-            padding='valid'      # Padding method
-            # data_format='channels_first',
+            padding='valid',      # Padding method
+            data_format='channels_first'
         ))
         model.add(LeakyReLU(alpha = 0.1))
         # Maxpooling 1
         model.add(MaxPooling3D(
             pool_size=(2,2,2),
             strides=None,
-            padding='valid'     # Padding method
-            # data_format='channels_first'
+            padding='valid',     # Padding method
+            data_format='channels_first'
         ))
         # Dropout 2
         model.add(Dropout(0.4))
@@ -82,38 +83,50 @@ def myargs():
                         'number of epochs for taining')
     parser.add_argument('--output', required = False, help = 
                         'location for the model to be saved')
+    parser.add_argument('--classes', type=int, default=1)
     args = parser.parse_args()
     return args
     
-def train_deepdrug(batch_size, lr, epoch, output):
+def train_deepdrug(batch_size, lr, epoch, output, classes=1):
     # optimize gpu memory usage 
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     assert len(physical_devices) > 0
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-    mdl = DeepDrug3DBuilder.build()
+    mdl = DeepDrug3DBuilder.build(classes=classes)
     adam = Adam(
         lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None,
         decay=0.0, amsgrad=False)
     
     # We add metrics to get more results you want to see
+    loss = "binary_crossentropy" if classes==1 else "categorical_crossentropy"
+    metric = "binary_accuracy" if classes == 1 else "categorical_accuracy"
     mdl.compile(
-        optimizer=adam, loss='binary_crossentropy',
-        metrics=['binary_accuracy'])
+        optimizer=adam, loss=loss,
+        metrics=[metric])
     
     # load the data
-    with open("../data/tough_c1/control-pocket.grids", "rb") as f:
+    with open("../data/tough_c1/control-pocket.resigrids", "rb") as f:
         grids = list(pk.load(f).values())
     labels = [np.array([0])] * len(grids)
-    with open("../data/tough_c1/nucleotide-pocket.grids", "rb") as f:
+    with open("../data/tough_c1/nucleotide-pocket.resigrids", "rb") as f:
         grids += list(pk.load(f).values())
     labels += [np.array([1])] * (len(grids) - len(labels))
+    if classes > 2:
+        with open("../data/tough_c1/heme-pocket.resigrids", "rb") as f:
+            grids += list(pk.load(f).values())
+        labels += [np.array([2])] * (len(grids) - len(labels))
+    if classes > 3:
+        with open("../data/tough_c1/steroid-pocket.resigrids", "rb") as f:
+            grids += list(pk.load(f).values())
+        labels += [np.array([3])] * (len(grids) - len(labels))
     temp = list(zip(grids, labels))
     shuffle(temp)
     grids, labels = zip(*temp)
     grids = np.stack(grids, axis=0)
-    grids = np.expand_dims(grids, -1)
     labels = np.stack(labels, axis=0)
+    if classes > 1:
+        labels = to_categorical(labels, num_classes = classes)
     print("grids type:", type(grids))
     print("grid type:", type(grids[0]), "shape:", grids[0].shape)
     print("labels type:", type(labels))
@@ -131,4 +144,4 @@ def train_deepdrug(batch_size, lr, epoch, output):
     
 if __name__ == "__main__":
     args = argdet()
-    train_deepdrug(args.bs, args.lr, args.epoch, args.output)
+    train_deepdrug(args.bs, args.lr, args.epoch, args.output, args.classes)
