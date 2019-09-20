@@ -2,7 +2,9 @@ import os
 import sys
 import argparse
 import pickle as pk
-from random import shuffle
+import random as rd
+import itertools
+import time
 
 import tensorflow as tf
 from tensorflow.keras import callbacks
@@ -86,24 +88,62 @@ def myargs():
     parser.add_argument('--classes', type=int, default=1)
     args = parser.parse_args()
     return args
-    
-def train_deepdrug(batch_size, lr, epoch, output, classes=1):
+
+def grid_augmentation(grid):
+    rotated_grids = list()
+    for fold in range(1, 4):
+        # for axes in itertools.combinations(range(3), 2):
+        new_grid = np.zeros(grid.shape)
+        for i in range(grid.shape[0]):
+            new_grid[i] = np.rot90(grid[0], fold, axes=(1, 2))
+        rotated_grids.append(new_grid)
+    return rotated_grids
+
+def split_training_set(x, y, ratio, data_aug=False, shuffle=False):
+    if shuffle:
+        temp = list(zip(x, y))
+        rd.shuffle(temp)
+        x, y = zip(*temp)
+    cut = int(len(x) * ratio)
+    train_x, val_x = x[:cut], x[cut:]
+    train_y, val_y = y[:cut], y[cut:]
+    if data_aug:
+        aug_x, aug_y = list(), list()
+        for x, y in zip(train_x, train_y):
+            aug_x.append(x)
+            aug_y.append(y)
+            rotated_x = grid_augmentation(x)
+            aug_x += rotated_x
+            aug_y += [y] * len(rotated_x)
+        temp = list(zip(aug_x, aug_y))
+        rd.shuffle(temp)
+        train_x, train_y = zip(*temp)
+    train_x = np.stack(train_x, axis=0)
+    train_y = np.stack(train_y, axis=0)
+    val_x = np.stack(val_x, axis=0)
+    val_y = np.stack(val_y, axis=0)
+    return train_x, train_y, val_x, val_y
+
+def split_dataset_with_kfold(x, y, k, k_fold):
+    d_len = len(x)
+    chunk_len = int(d_len/k_fold)
+    chunk_start = chunk_len * k
+    chunk_end = chunk_len * (k + 1)
+    train_x = x[:chunk_start] + x[chunk_end:]
+    train_y = y[:chunk_start] + y[chunk_end:]
+    val_x = x[chunk_start:chunk_end]
+    val_y = y[chunk_start:chunk_end]
+    train_x = np.stack(train_x, axis=0)
+    train_y = np.stack(train_y, axis=0)
+    val_x = np.stack(val_x, axis=0)
+    val_y = np.stack(val_y, axis=0)
+    return train_x, train_y, val_x, val_y
+
+def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, classes=1):
     # optimize gpu memory usage 
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     assert len(physical_devices) > 0
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
-
-    mdl = DeepDrug3DBuilder.build(classes=classes)
-    adam = Adam(
-        lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None,
-        decay=0.0, amsgrad=False)
-    
-    # We add metrics to get more results you want to see
-    loss = "binary_crossentropy" if classes==1 else "categorical_crossentropy"
-    metric = "binary_accuracy" if classes == 1 else "categorical_accuracy"
-    mdl.compile(
-        optimizer=adam, loss=loss,
-        metrics=[metric])
     
     # load the data
     with open("../data/tough_c1/control-pocket.resigrids", "rb") as f:
@@ -120,28 +160,50 @@ def train_deepdrug(batch_size, lr, epoch, output, classes=1):
         with open("../data/tough_c1/steroid-pocket.resigrids", "rb") as f:
             grids += list(pk.load(f).values())
         labels += [np.array([3])] * (len(grids) - len(labels))
-    temp = list(zip(grids, labels))
-    shuffle(temp)
-    grids, labels = zip(*temp)
-    grids = np.stack(grids, axis=0)
-    labels = np.stack(labels, axis=0)
-    if classes > 1:
-        labels = to_categorical(labels, num_classes = classes)
+    # shuffle input
+    idx_list = list(range(len(labels)))
+    rd.shuffle(idx_list)
+    grids = list(np.array(grids)[idx_list])
+    labels = list(np.array(labels)[idx_list])
     print("grids type:", type(grids))
     print("grid type:", type(grids[0]), "shape:", grids[0].shape)
     print("labels type:", type(labels))
     print("label type:", type(labels[0]), "shape:", labels[0].shape)
-    # callback function for model checking
-    tfCallBack = callbacks.TensorBoard(log_dir='training_logs')
-    mdl.fit(
-        grids, labels, epochs = epoch, batch_size = batch_size,
-        validation_split=0.3, shuffle = True, callbacks = [tfCallBack])
-    # save the model
-    if output == None:
-        mdl.save('deepdrug3d.h5')
-    else:
-        mdl.save(output)
+
+    histories = list()
+    timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+    for k in range(k_fold):
+        tf.keras.backend.clear_session()
+        # get training data with respect to the kth fold
+        x, y, val_x, val_y = split_dataset_with_kfold(grids, labels, k, k_fold)
+        if classes > 1:
+            y = to_categorical(y, num_classes = classes)
+            val_y = to_categorical(val_y, num_classes = classes)
+        val_data = (val_x, val_y)
+        # build & compile model
+        mdl = DeepDrug3DBuilder.build(classes=classes)
+        adam = Adam(
+            lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None,
+            decay=0.0, amsgrad=False)
+        loss = "binary_crossentropy" if classes==1 else "categorical_crossentropy"
+        metric = "binary_accuracy" if classes == 1 else "categorical_accuracy"
+        mdl.compile(
+            optimizer=adam, loss=loss,
+            metrics=[metric])
+        # callback function for model checking
+        log_dir = os.path.join('training_logs', timestamp, f"fold_{k}")
+        os.makedirs(log_dir, exist_ok=True)
+        tfCallBack = callbacks.TensorBoard(log_dir=log_dir)
+        history = mdl.fit(
+            x, y, epochs = epoch, batch_size = batch_size,
+            validation_data=val_data, shuffle = True, callbacks = [tfCallBack])
+        histories.append(history)
+    #     # save the model
+    # if output == None:
+    #     mdl.save('deepdrug3d.h5')
+    # else:
+    #     mdl.save(output)
     
 if __name__ == "__main__":
     args = argdet()
-    train_deepdrug(args.bs, args.lr, args.epoch, args.output, args.classes)
+    train_deepdrug(args.bs, args.lr, args.epoch, args.output, classes=args.classes)
