@@ -71,24 +71,6 @@ class DeepDrug3DBuilder(object):
             model.add(Activation('softmax'))
         return model
 
-
-def argdet():
-    args = myargs()
-    return args
-
-def myargs():
-    parser = argparse.ArgumentParser()                                              
-    parser.add_argument('--bs', required = True, type=int, help = 'batch size')
-    parser.add_argument('--lr', required = True, type=float, help = 
-                        'initial learning rate')
-    parser.add_argument('--epoch', required = True, type=int, help = 
-                        'number of epochs for taining')
-    parser.add_argument('--output', required = False, help = 
-                        'location for the model to be saved')
-    parser.add_argument('--classes', type=int, default=1)
-    args = parser.parse_args()
-    return args
-
 def grid_augmentation(grid):
     rotated_grids = list()
     for fold in range(1, 4):
@@ -198,12 +180,39 @@ def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, classes=1):
             x, y, epochs = epoch, batch_size = batch_size,
             validation_data=val_data, shuffle = True, callbacks = [tfCallBack])
         histories.append(history)
+    val_accs = list()
+    for his in histories:
+        val_accs.append(his.history["val_binary_accuracy"])
+    val_accs = np.array(val_accs)
+    avgs = np.mean(val_accs, axis=0)
+    best_epoch = np.argmax(avgs)
+    max_accs = val_accs[:, best_epoch]
+    acc_avg = np.mean(max_accs)
+    acc_std = np.std(max_accs)
+    print(f"{k_fold}-fold cross validation performs the best at epoch {best_epoch}")
+    print(f"Accuracy is {acc_avg:.2f} ± {acc_std:.2f}")
     #     # save the model
     # if output == None:
     #     mdl.save('deepdrug3d.h5')
     # else:
     #     mdl.save(output)
-    
+
+
+def myargs():
+    parser = argparse.ArgumentParser()                                              
+    parser.add_argument('--bs', required = True, type=int, help = 'batch size')
+    parser.add_argument('--lr', required = True, type=float, help = 
+                        'initial learning rate')
+    parser.add_argument('--epoch', required = True, type=int, help = 
+                        'number of epochs for taining')
+    parser.add_argument('--output', required = False, help = 
+                        'location for the model to be saved')
+    parser.add_argument('--fold', type=int, default=10, help=
+                        'number of folds for k-fold cross validation')
+    parser.add_argument('--classes', type=int, default=1)
+    args = parser.parse_args()
+    return args
+
 if __name__ == "__main__":
-    args = argdet()
-    train_deepdrug(args.bs, args.lr, args.epoch, args.output, classes=args.classes)
+    args = myargs()
+    train_deepdrug(args.bs, args.lr, args.epoch, args.output, k_fold=args.fold, classes=args.classes)
