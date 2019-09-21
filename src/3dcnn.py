@@ -182,7 +182,10 @@ def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, classes=1):
         histories.append(history)
     val_accs = list()
     for his in histories:
-        val_accs.append(his.history["val_binary_accuracy"])
+        try:
+            val_accs.append(his.history["val_binary_accuracy"])
+        except KeyError:
+            val_accs.append(his.history["val_categorical_accuracy"])
     val_accs = np.array(val_accs)
     avgs = np.mean(val_accs, axis=0)
     best_epoch = np.argmax(avgs)
