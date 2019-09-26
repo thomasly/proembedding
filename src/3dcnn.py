@@ -192,8 +192,17 @@ def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, classes=1):
     max_accs = val_accs[:, best_epoch]
     acc_avg = np.mean(max_accs)
     acc_std = np.std(max_accs)
-    print(f"{k_fold}-fold cross validation performs the best at epoch {best_epoch}")
-    print(f"Accuracy is {acc_avg:.2f} ± {acc_std:.3f}")
+    print(
+        f"{k_fold}-fold cross validation performs the best "
+        "at epoch {best_epoch}",
+        file=f)
+    print(f"Accuracy is {acc_avg:.2f} ± {acc_std:.3f}", file=f)
+    with open(os.path.join("train_logs", timestamp, "readme"), "w") as f:
+        print(
+            f"{k_fold}-fold cross validation performs the best "
+            "at epoch {best_epoch}",
+            file=f)
+        print(f"Accuracy is {acc_avg:.2f} ± {acc_std:.3f}", file=f)
     #     # save the model
     # if output == None:
     #     mdl.save('deepdrug3d.h5')
