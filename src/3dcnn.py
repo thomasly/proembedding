@@ -121,7 +121,7 @@ def split_dataset_with_kfold(x, y, k, k_fold):
     val_y = np.stack(val_y, axis=0)
     return train_x, train_y, val_x, val_y
 
-def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, classes=1):
+def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, subset="all"):
     # optimize gpu memory usage 
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     assert len(physical_devices) > 0
@@ -131,26 +131,39 @@ def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, classes=1):
     with open("../data/tough_c1/control-pocket.resigrids", "rb") as f:
         grids = list(pk.load(f).values())
     labels = [np.array([0])] * len(grids)
-    with open("../data/tough_c1/nucleotide-pocket.resigrids", "rb") as f:
-        grids += list(pk.load(f).values())
-    labels += [np.array([1])] * (len(grids) - len(labels))
-    if classes > 2:
+    if subset == "nucleotide":
+        with open("../data/tough_c1/nucleotide-pocket.resigrids", "rb") as f:
+            grids += list(pk.load(f).values())
+        labels += [np.array([1])] * (len(grids) - len(labels))
+        classes = 1
+    elif subset == "heme":
         with open("../data/tough_c1/heme-pocket.resigrids", "rb") as f:
             grids += list(pk.load(f).values())
         labels += [np.array([2])] * (len(grids) - len(labels))
-    if classes > 3:
+        classes = 1
+    elif subset == "all":
+        with open("../data/tough_c1/nucleotide-pocket.resigrids", "rb") as f:
+            grids += list(pk.load(f).values())
+        labels += [np.array([1])] * (len(grids) - len(labels))
+        with open("../data/tough_c1/heme-pocket.resigrids", "rb") as f:
+            grids += list(pk.load(f).values())
+        labels += [np.array([2])] * (len(grids) - len(labels))
         with open("../data/tough_c1/steroid-pocket.resigrids", "rb") as f:
             grids += list(pk.load(f).values())
         labels += [np.array([3])] * (len(grids) - len(labels))
+        classes = 4
+    else:
+        print("Invalid subset name. Please choose from all/nucleotide/heme.")
+        return
     # shuffle input
     idx_list = list(range(len(labels)))
     rd.shuffle(idx_list)
     grids = list(np.array(grids)[idx_list])
     labels = list(np.array(labels)[idx_list])
-    print("grids type:", type(grids))
-    print("grid type:", type(grids[0]), "shape:", grids[0].shape)
-    print("labels type:", type(labels))
-    print("label type:", type(labels[0]), "shape:", labels[0].shape)
+    # print("grids type:", type(grids))
+    # print("grid type:", type(grids[0]), "shape:", grids[0].shape)
+    # print("labels type:", type(labels))
+    # print("label type:", type(labels[0]), "shape:", labels[0].shape)
 
     histories = list()
     timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
@@ -159,15 +172,16 @@ def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, classes=1):
         # get training data with respect to the kth fold
         x, y, val_x, val_y = split_dataset_with_kfold(grids, labels, k, k_fold)
         if classes > 1:
-            y = to_categorical(y, num_classes = classes)
-            val_y = to_categorical(val_y, num_classes = classes)
+            y = to_categorical(y, num_classes=classes)
+            val_y = to_categorical(val_y, num_classes=classes)
         val_data = (val_x, val_y)
         # build & compile model
         mdl = DeepDrug3DBuilder.build(classes=classes)
         adam = Adam(
             lr=lr, beta_1=0.9, beta_2=0.999, epsilon=None,
             decay=0.0, amsgrad=False)
-        loss = "binary_crossentropy" if classes==1 else "categorical_crossentropy"
+        loss = "binary_crossentropy" if classes==1 \
+            else "categorical_crossentropy"
         metric = "binary_accuracy" if classes == 1 else "categorical_accuracy"
         mdl.compile(
             optimizer=adam, loss=loss,
@@ -194,15 +208,19 @@ def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, classes=1):
     acc_std = np.std(max_accs)
     print(
         f"{k_fold}-fold cross validation performs the best "
-        "at epoch {best_epoch}",
-        file=f)
-    print(f"Accuracy is {acc_avg:.2f} ± {acc_std:.3f}", file=f)
-    with open(os.path.join("train_logs", timestamp, "readme"), "w") as f:
+        f"at epoch {best_epoch}")
+    print(f"Accuracy is {acc_avg:.2f} +- {acc_std:.3f}")
+    with open(os.path.join("training_logs", timestamp, "readme"), "w") as f:
+        print(f"dataset: {subset}", file=f)
+        print(f"batch size: {batch_size}", file=f)
+        print(f"learning rate: {lr}", file=f)
+        print(f"epochs: {epoch}", file=f)
+        print(f"validation folds: {fold}", file=f)
         print(
             f"{k_fold}-fold cross validation performs the best "
-            "at epoch {best_epoch}",
+            f"at epoch {best_epoch}",
             file=f)
-        print(f"Accuracy is {acc_avg:.2f} ± {acc_std:.3f}", file=f)
+        print(f"Accuracy is {acc_avg:.2f} +- {acc_std:.3f}", file=f)
     #     # save the model
     # if output == None:
     #     mdl.save('deepdrug3d.h5')
@@ -221,10 +239,11 @@ def myargs():
                         'location for the model to be saved')
     parser.add_argument('--fold', type=int, default=10, help=
                         'number of folds for k-fold cross validation')
-    parser.add_argument('--classes', type=int, default=1)
+    parser.add_argument('--set', default="all")
     args = parser.parse_args()
     return args
 
 if __name__ == "__main__":
     args = myargs()
-    train_deepdrug(args.bs, args.lr, args.epoch, args.output, k_fold=args.fold, classes=args.classes)
+    train_deepdrug(args.bs, args.lr, args.epoch, args.output,
+                   k_fold=args.fold, subset=args.set)
