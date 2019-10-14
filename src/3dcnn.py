@@ -139,7 +139,7 @@ def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, subset="all"):
     elif subset == "heme":
         with open("../data/tough_c1/heme-pocket.resigrids", "rb") as f:
             grids += list(pk.load(f).values())
-        labels += [np.array([2])] * (len(grids) - len(labels))
+        labels += [np.array([1])] * (len(grids) - len(labels))
         classes = 1
     elif subset == "all":
         with open("../data/tough_c1/nucleotide-pocket.resigrids", "rb") as f:
@@ -215,7 +215,7 @@ def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, subset="all"):
         print(f"batch size: {batch_size}", file=f)
         print(f"learning rate: {lr}", file=f)
         print(f"epochs: {epoch}", file=f)
-        print(f"validation folds: {fold}", file=f)
+        print(f"validation folds: {k_fold}", file=f)
         print(
             f"{k_fold}-fold cross validation performs the best "
             f"at epoch {best_epoch}",
