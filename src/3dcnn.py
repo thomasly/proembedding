@@ -32,7 +32,7 @@ class DeepDrug3DBuilder(object):
         # Conv layer 1
         model.add(Convolution3D(
             # input_shape = (33, 33, 33, 1),
-            filters=64,
+            filters=128,
             kernel_size=5,
             padding='valid',    # Padding method
             data_format='channels_first'
@@ -42,7 +42,7 @@ class DeepDrug3DBuilder(object):
         model.add(Dropout(0.2))
         # Conv layer 2
         model.add(Convolution3D(
-            filters=64,
+            filters=128,
             kernel_size=3,
             padding='valid',      # Padding method
             data_format='channels_first'
