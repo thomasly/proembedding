@@ -1,0 +1,1 @@
+FOR %%i IN (steroid, control, nucleotide, heme) DO python generate_pocket_pca_dataset.py --set %%i

@@ -121,34 +121,38 @@ def split_dataset_with_kfold(x, y, k, k_fold):
     val_y = np.stack(val_y, axis=0)
     return train_x, train_y, val_x, val_y
 
-def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, subset="all"):
+def train_deepdrug(batch_size,
+                   lr, epoch,
+                   output, k_fold=10,
+                   subset="all",
+                   suffix="resigrids"):
     # optimize gpu memory usage 
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     assert len(physical_devices) > 0
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
     
     # load the data
-    with open("../data/tough_c1/control-pocket.resigrids", "rb") as f:
+    with open("../data/tough_c1/control-pocket."+suffix, "rb") as f:
         grids = list(pk.load(f).values())
     labels = [np.array([0])] * len(grids)
     if subset == "nucleotide":
-        with open("../data/tough_c1/nucleotide-pocket.resigrids", "rb") as f:
+        with open("../data/tough_c1/nucleotide-pocket."+suffix, "rb") as f:
             grids += list(pk.load(f).values())
         labels += [np.array([1])] * (len(grids) - len(labels))
         classes = 1
     elif subset == "heme":
-        with open("../data/tough_c1/heme-pocket.resigrids", "rb") as f:
+        with open("../data/tough_c1/heme-pocket."+suffix, "rb") as f:
             grids += list(pk.load(f).values())
         labels += [np.array([1])] * (len(grids) - len(labels))
         classes = 1
     elif subset == "all":
-        with open("../data/tough_c1/nucleotide-pocket.resigrids", "rb") as f:
+        with open("../data/tough_c1/nucleotide-pocket."+suffix, "rb") as f:
             grids += list(pk.load(f).values())
         labels += [np.array([1])] * (len(grids) - len(labels))
-        with open("../data/tough_c1/heme-pocket.resigrids", "rb") as f:
+        with open("../data/tough_c1/heme-pocket."+suffix, "rb") as f:
             grids += list(pk.load(f).values())
         labels += [np.array([2])] * (len(grids) - len(labels))
-        with open("../data/tough_c1/steroid-pocket.resigrids", "rb") as f:
+        with open("../data/tough_c1/steroid-pocket."+suffix, "rb") as f:
             grids += list(pk.load(f).values())
         labels += [np.array([3])] * (len(grids) - len(labels))
         classes = 4
@@ -212,6 +216,7 @@ def train_deepdrug(batch_size, lr, epoch, output, k_fold=10, subset="all"):
     print(f"Accuracy is {acc_avg:.2f} +- {acc_std:.3f}")
     with open(os.path.join("training_logs", timestamp, "readme"), "w") as f:
         print(f"dataset: {subset}", file=f)
+        print(f"grid type: {suffix}", file=f)
         print(f"batch size: {batch_size}", file=f)
         print(f"learning rate: {lr}", file=f)
         print(f"epochs: {epoch}", file=f)
@@ -240,10 +245,11 @@ def myargs():
     parser.add_argument('--fold', type=int, default=10, help=
                         'number of folds for k-fold cross validation')
     parser.add_argument('--set', default="all")
+    parser.add_argument('--suffix', default='resigrids')
     args = parser.parse_args()
     return args
 
 if __name__ == "__main__":
     args = myargs()
     train_deepdrug(args.bs, args.lr, args.epoch, args.output,
-                   k_fold=args.fold, subset=args.set)
+                   k_fold=args.fold, subset=args.set, suffix=args.suffix)
