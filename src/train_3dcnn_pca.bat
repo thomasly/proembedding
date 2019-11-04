@@ -1,1 +1,1 @@
-FOR %%i IN (all, nucleotide, heme) DO python 3dcnn.py --bs 64 --lr 0.00001 --epoch 30 --fold 10 --set %%i --suffix resipcagrids
+FOR %%i IN (all, nucleotide, heme) DO python 3dcnn.py --bs 32 --lr 0.00001 --epoch 30 --fold 10 --set %%i --suffix resipcagrids
