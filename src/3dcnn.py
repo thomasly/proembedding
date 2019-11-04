@@ -213,7 +213,7 @@ def train_deepdrug(batch_size,
     print(
         f"{k_fold}-fold cross validation performs the best "
         f"at epoch {best_epoch}")
-    print(f"Accuracy is {acc_avg:.2f} +- {acc_std:.3f}")
+    print(f"Accuracy is {acc_avg} +- {acc_std}")
     with open(os.path.join("training_logs", timestamp, "readme"), "w") as f:
         print(f"dataset: {subset}", file=f)
         print(f"grid type: {suffix}", file=f)
@@ -225,7 +225,7 @@ def train_deepdrug(batch_size,
             f"{k_fold}-fold cross validation performs the best "
             f"at epoch {best_epoch}",
             file=f)
-        print(f"Accuracy is {acc_avg:.2f} +- {acc_std:.3f}", file=f)
+        print(f"Accuracy is {acc_avg} +- {acc_std}", file=f)
     #     # save the model
     # if output == None:
     #     mdl.save('deepdrug3d.h5')
