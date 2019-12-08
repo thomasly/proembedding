@@ -214,6 +214,11 @@ class Mol2toGrid:
             atom_types.append(atom_type)
         return atom_coos, atom_types
 
+    def normalize(self, atoms):
+        normed_coor = np.array(atoms)
+        avgs = np.mean(normed_coor, axis=0)
+        return normed_coor - avgs
+
     def rotate_norm(self, atoms):
         rotate_norm_coor = np.array(atoms)
         pca = PCA(n_components=3)
@@ -235,12 +240,15 @@ class Mol2toGrid:
         atom_rep = np.where(distances < cutoff, distances, float("inf"))
         return np.exp(-np.power(atom_rep, power)/2)
 
-    def get_grid(self, dimension=33, zoom=2, cutoff=2, power=2):
+    def get_grid(self, dimension=33, zoom=2, rotate=False, cutoff=2, power=2):
         channels = len(self._atom_types)
         grid = self._initialize_channel_grid(dimension, channels=channels)
         atoms = self.mol_parser.get_atom_attributes()
         atom_coos, atom_types = self._parse_atoms(atoms)
-        atom_coos = self.rotate_norm(atom_coos)
+        if rotate:
+            atom_coos = self.rotate_norm(atom_coos)
+        else:
+            atom_coos = self.normalize(atom_coos)
         for coo, typ in zip(atom_coos, atom_types):
             atom_in_grid = self.put_atom_to_grid(
                 coo, dimension, zoom=zoom, cutoff=cutoff, power=power)

@@ -5,7 +5,12 @@ from argparse import ArgumentParser
 from utils.mol2parser import Mol2toGrid
 from tqdm import tqdm
 
-def save_grid(in_path, out_path, grid_dimension, zoom, prefix=None):
+def save_grid(in_path,
+              out_path,
+              grid_dimension,
+              zoom,
+              prefix=None,
+              rotate=False):
     # define prefix
     if prefix is None:
         prefix = os.path.basename(in_path)
@@ -27,9 +32,14 @@ def save_grid(in_path, out_path, grid_dimension, zoom, prefix=None):
             continue
         mol_id = mol_f.name.split(".")[0]
         mol = Mol2toGrid(mol_f.path)
-        mol_grid = mol.get_grid(grid_dimension, zoom=zoom)
+        mol_grid = mol.get_grid(grid_dimension, zoom=zoom, rotate=rotate)
         grids[mol_id] = mol_grid
-    with open(os.path.join(out_path, prefix+".pca.grids"), "wb") as f:
+        break
+    if rotate:
+        extention = ".pca.grids"
+    else:
+        extention = ".grids"
+    with open(os.path.join(out_path, prefix+extention), "wb") as f:
         pk.dump(grids, f)
 
 
@@ -47,6 +57,9 @@ class MainParser(ArgumentParser):
                           help="Dimension of the grids.")
         self.add_argument("-z", "--zoom", type=float, default=1.0,
                           help="Fold to zoom in when saving the molecule.")
+        self.add_argument("-r", "--rotate", action="store_true",
+                          help="Whether to align the coordinates to PCA "
+                               "componensts.")
 
 
 if __name__ == "__main__":
@@ -57,6 +70,7 @@ if __name__ == "__main__":
     prefix = args.prefix
     dimension = args.dimension
     zoom = args.zoom
+    rotate = args.rotate
 
-    save_grid(in_path, out_path, dimension, zoom, prefix)
+    save_grid(in_path, out_path, dimension, zoom, prefix, rotate)
 
