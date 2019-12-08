@@ -1,7 +1,9 @@
 from collections import namedtuple
+import copy
 
 import numpy as np
 from scipy.sparse import coo_matrix
+from sklearn.decomposition import PCA
 
 
 class Mol2Parser:
@@ -88,9 +90,9 @@ class Mol2Parser:
 class Mol2toGraph:
 
     _atom_types = "C.3,C.2,C.1,C.ar,C.cat,N.3,N.2,N.1,N.ar,N.am,N.pl3,N.4,"\
-                 "O.3,O.2,O.co2,O.spc,O.t3p,S.3,S.2,S.O,S.O2,P.3,F,H,H.spc,"\
-                 "H.t3p,LP,Du,Du.C,Hal,Het,Hev,Li,Na,Mg,Al,Si,K,Ca,Cr.thm,"\
-                 "Cr.oh,Mn,Fe,Co.oh,Cu,Any".split(",")
+                  "O.3,O.2,O.co2,O.spc,O.t3p,S.3,S.2,S.O,S.O2,P.3,F,Cl,Br,I,"\
+                  "H,H.spc,H.t3p,LP,Du,Du.C,Hal,Het,Hev,Li,Na,Mg,Al,Si,K,Ca,"\
+                  "Cr.thm,Cr.oh,Mn,Fe,Co.oh,Cu,Any".split(",")
     _atom2int = {atom.upper():idx for idx, atom in enumerate(_atom_types)}
 
     _bond_types = "1,2,3,am,ar,du,un,cn,any".split(",")
@@ -166,6 +168,84 @@ class Mol2toGraph:
                 bond_types[key] = bond_types[key2] = \
                     self._bond2int["ANY"]
         return bond_types
+
+
+class Mol2toGrid:
+
+    _atom_types = "C,N,O,S,P,B,F,Cl,Br,I,H,Any".split(",") 
+    _atom2int = {atom.upper():idx for idx, atom in enumerate(_atom_types)}
+
+    def __init__(self, mol2_path):
+        self._path = mol2_path
+        self.mol_parser = Mol2Parser(mol2_path)
+
+    def _initialize_channel_grid(self, dimension, channels=20):
+        grid = np.zeros(
+            (channels, dimension, dimension, dimension),
+            dtype=np.float16)
+        return grid
+
+    def _get_coodinate_grid(self, dimension, zoom, n_coors=3):
+        coo_grid = np.zeros(
+            (dimension, dimension, dimension, n_coors), dtype=np.float16)
+        for i in range(dimension):
+            for j in range(dimension):
+                for k in range(dimension):
+                    coo_grid[i][j][k] = np.array([i/zoom, j/zoom, k/zoom])
+        return coo_grid
+
+    def coo_grid(self, dimension, zoom):
+        try: return self._coo_grid
+        except AttributeError:
+            self._coo_grid = self._get_coodinate_grid(dimension, zoom=zoom)
+            return self._coo_grid
+
+    def _parse_atoms(self, atoms):
+        atom_coos, atom_types = list(), list()
+        for atom in atoms:
+            atom_coos.append(list(map(float, [atom.x, atom.y, atom.z])))
+            atom_name = atom.type.split(".")[0].upper()
+            if atom_name == "DU":
+                atom_name = "C"
+            try:
+                atom_type = self._atom2int[atom_name]
+            except KeyError:
+                atom_type = self._atom2int["ANY"]
+            atom_types.append(atom_type)
+        return atom_coos, atom_types
+
+    def rotate_norm(self, atoms):
+        rotate_norm_coor = np.array(atoms)
+        pca = PCA(n_components=3)
+        pca.fit(atoms)
+        rotate_norm_coor = pca.transform(rotate_norm_coor)
+        avgs = np.mean(rotate_norm_coor, axis=0)
+        return rotate_norm_coor - avgs
+
+    def put_atom_to_grid(self,
+                         coordinates,
+                         dimension,
+                         zoom,
+                         cutoff,
+                         power):
+        start = int(dimension/zoom//2)
+        grid = copy.deepcopy(self.coo_grid(dimension, zoom=zoom)) 
+        grid = grid - start
+        distances = np.linalg.norm((grid - coordinates), axis=3)
+        atom_rep = np.where(distances < cutoff, distances, float("inf"))
+        return np.exp(-np.power(atom_rep, power)/2)
+
+    def get_grid(self, dimension=33, zoom=2, cutoff=2, power=2):
+        channels = len(self._atom_types)
+        grid = self._initialize_channel_grid(dimension, channels=channels)
+        atoms = self.mol_parser.get_atom_attributes()
+        atom_coos, atom_types = self._parse_atoms(atoms)
+        atom_coos = self.rotate_norm(atom_coos)
+        for coo, typ in zip(atom_coos, atom_types):
+            atom_in_grid = self.put_atom_to_grid(
+                coo, dimension, zoom=zoom, cutoff=cutoff, power=power)
+            grid[typ] += atom_in_grid
+        return grid
 
 
 if __name__ == "__main__":
