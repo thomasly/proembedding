@@ -19,7 +19,7 @@ def _convert2string(array, precision=6):
 def _get_graph_label(path):
     """ Get the graph label based on the path
     """
-    if os.path.basename(os.path.dirname(path)) == "active":
+    if os.path.basename(os.path.dirname(path)) == "actives":
         return 1
     return 0
 
@@ -29,7 +29,7 @@ def save_graph(in_path, out_path, prefix, decimal=6):
         prefix = os.path.basename(in_path)
 
     # paths to the active and decoy directories
-    active_path = os.path.join(in_path, "active")
+    active_path = os.path.join(in_path, "actives")
     inactive_path = os.path.join(in_path, "decoys")
     # input file list
     infiles = list(os.scandir(active_path)) + list(os.scandir(inactive_path))
