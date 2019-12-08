@@ -34,7 +34,6 @@ def save_grid(in_path,
         mol = Mol2toGrid(mol_f.path)
         mol_grid = mol.get_grid(grid_dimension, zoom=zoom, rotate=rotate)
         grids[mol_id] = mol_grid
-        break
     if rotate:
         extention = ".pca.grids"
     else:
