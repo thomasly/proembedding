@@ -174,7 +174,7 @@ def train_deepdrug(batch_size,
             optimizer=adam, loss=loss,
             metrics=[metric])
         # callback function for model checking
-        log_d = os.path.join(log_dir, timestamp, f"fold_{k}")
+        log_d = os.path.join(log_dir, timestamp, "fold_{}".format(k))
         os.makedirs(log_d, exist_ok=True)
         tfCallBack = callbacks.TensorBoard(log_dir=log_d)
         history = mdl.fit(
