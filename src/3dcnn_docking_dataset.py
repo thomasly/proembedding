@@ -194,20 +194,20 @@ def train_deepdrug(batch_size,
     acc_avg = np.mean(max_accs)
     acc_std = np.std(max_accs)
     print(
-        f"{k_fold}-fold cross validation performs the best "
-        f"at epoch {best_epoch}")
-    print(f"Accuracy is {acc_avg} +- {acc_std}")
+        "{}-fold cross validation performs the best "
+        "at epoch {}".format(k_fold, best_epoch))
+    print("Accuracy is {} +- {}".format(acc_avg, acc_std))
     with open(os.path.join(log_dir, timestamp, "readme"), "w") as f:
-        print(f"dataset: {os.path.basename(input)}", file=f)
-        print(f"batch size: {batch_size}", file=f)
-        print(f"learning rate: {lr}", file=f)
-        print(f"epochs: {epoch}", file=f)
-        print(f"validation folds: {k_fold}", file=f)
+        print("dataset: {}".format(os.path.basename(input)), file=f)
+        print("batch size: {}".format(batch_size), file=f)
+        print("learning rate: {}".format(lr), file=f)
+        print("epochs: {}".format(epoch), file=f)
+        print("validation folds: {}".format(k_fold), file=f)
         print(
-            f"{k_fold}-fold cross validation performs the best "
-            f"at epoch {best_epoch}",
+            "{}-fold cross validation performs the best "
+            "at epoch {}".format(k_fold, best_epoch),
             file=f)
-        print(f"Accuracy is {acc_avg} +- {acc_std}", file=f)
+        print("Accuracy is {} +- {}".format(acc_avg, acc_std), file=f)
     #     # save the model
     # if output == None:
     #     mdl.save('deepdrug3d.h5')
