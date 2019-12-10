@@ -256,18 +256,54 @@ class Mol2toGrid:
         return grid
 
 
+class Mol2toPointCloud:
+
+    _atom_types = "C.3,C.2,C.1,C.ar,C.cat,N.3,N.2,N.1,N.ar,N.am,N.pl3,N.4,"\
+                  "O.3,O.2,O.co2,O.spc,O.t3p,S.3,S.2,S.O,S.O2,P.3,F,Cl,Br,I,"\
+                  "H,H.spc,H.t3p,LP,Du,Du.C,Hal,Het,Hev,Li,Na,Mg,Al,Si,K,Ca,"\
+                  "Cr.thm,Cr.oh,Mn,Fe,Co.oh,Cu,Any".split(",")
+    _atom2int = {atom.upper():idx for idx, atom in enumerate(_atom_types)}
+
+    def __init__(self, mol2_path):
+        self._path = mol2_path
+        self.mol_parser = Mol2Parser(mol2_path)
+
+    def normalize(self, point_cloud):
+        avgs = np.mean(point_cloud, axis=0)
+        return point_cloud - avgs
+
+    def get_point_cloud(self, include_type=True):
+        # get the attributes of atoms from the .mol2 file
+        atoms = self.mol_parser.get_atom_attributes()
+        
+        # initialize the point cloud
+        point_cloud = np.zeros((len(atoms), 3))
+        type_channel = np.zeros((len(atoms), 1))
+        # save coordinates and atom type into the point cloud
+        for i, atom in enumerate(atoms):
+            point_cloud[i] = np.array([atom.x, atom.y, atom.z])
+            try:
+                type_channel[i] = self._atom2int[atom.type.upper()]
+            except KeyError:
+                type_channel[i] = self._atom2int["ANY"]
+        point_cloud = self.normalize(point_cloud)
+        if include_type:
+            point_cloud = np.concatenate([point_cloud, type_channel], axis=1)
+        return point_cloud
+
+
 if __name__ == "__main__":
-    from time import sleep
-    molGraph = Mol2toGraph(
-        r"..\..\data\docking\akt1\active\3cqw-actives34_pose1.mol2")
-    print("Bonds:", molGraph.bonds())
-    print("Coordinates:", molGraph.atom_coordinates)
-    print("Adjacency matrix:", molGraph.get_adjacency_matrix())
-    print("Center:", molGraph._find_center())
-    print("Surf noms:", molGraph.get_surf_norms())
-    print("n_atoms:", molGraph.n_atoms)
-    print("atom types:", molGraph.get_atom_types())
-    print("bond types:", molGraph.get_bond_types())
+    # from time import sleep
+    # molGraph = Mol2toGraph(
+    #     r"..\..\data\docking\akt1\active\3cqw-actives34_pose1.mol2")
+    # print("Bonds:", molGraph.bonds())
+    # print("Coordinates:", molGraph.atom_coordinates)
+    # print("Adjacency matrix:", molGraph.get_adjacency_matrix())
+    # print("Center:", molGraph._find_center())
+    # print("Surf noms:", molGraph.get_surf_norms())
+    # print("n_atoms:", molGraph.n_atoms)
+    # print("atom types:", molGraph.get_atom_types())
+    # print("bond types:", molGraph.get_bond_types())
     # print(mol_parser.contents)
     # sleep(5)
     # print(mol_parser.content_dict)
@@ -275,3 +311,9 @@ if __name__ == "__main__":
     # print(mol_parser.get_atom_attributes())
     # sleep(5)
     # print(mol_parser.get_bond_attributes())
+    m2pc = Mol2toPointCloud(
+        r"..\..\data\docking\akt1\actives\3cqw-actives100_pose1.mol2")
+    cloud = m2pc.get_point_cloud(include_type=True)
+    print(cloud)
+    print("shape:", cloud.shape)
+
