@@ -11,6 +11,7 @@ src/training_logs
 # data file
 data/
 bin/
+test/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
