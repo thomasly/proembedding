@@ -55,7 +55,18 @@ def save_graph(in_path, out_path, prefix, decimal=6):
     for infile in tqdm(infiles):
         if not infile.name.endswith(".mol2"):
             continue
+        if "pose1" not in infile.name:
+            continue
         m2g = Mol2toGraph(infile.path)
+
+        # write bond types
+        try:
+            bond_types = m2g.get_bond_types()
+        except KeyError: # files lacking bond information
+            continue
+        for origin, target in zip(adj_matrix.row, adj_matrix.col):
+            key = str(origin+1) + "-" + str(target+1)
+            edge_attr.write(str(bond_types[key])+"\n")
 
         # generate and write adjacency matrix
         adj_matrix = m2g.get_adjacency_matrix()
@@ -81,13 +92,6 @@ def save_graph(in_path, out_path, prefix, decimal=6):
                                        axis=1)
         writable = _convert2string(node_features, decimal)
         n_label.write(writable)
-
-        # write bond types
-        bond_types = m2g.get_bond_types()
-        for origin, target in zip(adj_matrix.row, adj_matrix.col):
-            key = str(origin+1) + "-" + str(target+1)
-            edge_attr.write(str(bond_types[key])+"\n")
-
 
         # log the mol2 file path
         mol_list.write(infile.path+"\n")
