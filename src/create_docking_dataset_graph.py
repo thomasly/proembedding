@@ -59,6 +59,8 @@ def save_graph(in_path, out_path, prefix, decimal=6):
             continue
         m2g = Mol2toGraph(infile.path)
 
+        # generate adjacency matrix
+        adj_matrix = m2g.get_adjacency_matrix()
         # write bond types
         try:
             bond_types = m2g.get_bond_types()
@@ -67,9 +69,7 @@ def save_graph(in_path, out_path, prefix, decimal=6):
         for origin, target in zip(adj_matrix.row, adj_matrix.col):
             key = str(origin+1) + "-" + str(target+1)
             edge_attr.write(str(bond_types[key])+"\n")
-
-        # generate and write adjacency matrix
-        adj_matrix = m2g.get_adjacency_matrix()
+        # write adjacency matrix and update node starting index
         for origin, target in zip(adj_matrix.row, adj_matrix.col):
             origin = origin + 1 + node_starting_index
             target = target + 1 + node_starting_index
