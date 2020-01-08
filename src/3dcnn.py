@@ -15,6 +15,7 @@ from tensorflow.keras.layers import LeakyReLU
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import to_categorical
 import numpy as np
+from sklearn.utils.class_weight import compute_sample_weight
 from tqdm import tqdm
 
 # For reproductivity
@@ -175,9 +176,15 @@ def train_deepdrug(batch_size,
         tf.keras.backend.clear_session()
         # get training data with respect to the kth fold
         x, y, val_x, val_y = split_dataset_with_kfold(grids, labels, k, k_fold)
+        
         if classes > 1:
             y = to_categorical(y, num_classes=classes)
             val_y = to_categorical(val_y, num_classes=classes)
+
+        # to balance different classes
+        sample_weights = compute_sample_weight('balanced', y)
+        print("sample weights: {}, shape: {}".format(sample_weights, sample_weights.shape))
+          
         val_data = (val_x, val_y)
         # build & compile model
         mdl = DeepDrug3DBuilder.build(classes=classes)
@@ -195,8 +202,9 @@ def train_deepdrug(batch_size,
         os.makedirs(log_dir, exist_ok=True)
         tfCallBack = callbacks.TensorBoard(log_dir=log_dir)
         history = mdl.fit(
-            x, y, epochs = epoch, batch_size = batch_size,
-            validation_data=val_data, shuffle = True, callbacks = [tfCallBack])
+            x, y, epochs = epoch, batch_size = batch_size, 
+            sample_weight=sample_weights, validation_data=val_data,
+            shuffle = True, callbacks = [tfCallBack])
         histories.append(history)
     val_accs = list()
     for his in histories:
