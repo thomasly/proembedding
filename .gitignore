@@ -1,9 +1,11 @@
-# testing notebooks
+# testing files
 notebook/
+test/
 
 # running logs
 src/logs
 src/training_logs
+results/
 
 # vs code settings
 .vscode/
@@ -11,7 +13,6 @@ src/training_logs
 # data file
 data/
 bin/
-test/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
