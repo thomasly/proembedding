@@ -13,6 +13,7 @@ from tensorflow.keras.regularizers import l2
 from tensorflow.keras.callbacks import TensorBoard, LearningRateScheduler
 from sklearn.model_selection import StratifiedKFold
 import numpy as np
+from sklearn.utils.class_weight import compute_sample_weight
 
 
 class PointNet(Model):
@@ -20,21 +21,21 @@ class PointNet(Model):
     def __init__(self, channels, classes=4, drop_rate=0.5, weight_decay=0.01):
         super(PointNet, self).__init__()
         conv_kernel = (1, channels)
-        self.conv2d_input = Conv2D(64, conv_kernel, activation="relu")
+        self.conv2d_input = Conv2D(1024, conv_kernel, activation="relu")
         self.batch_norm_1 = BatchNormalization(axis=1, scale=False)
         self.batch_norm_2 = BatchNormalization()
         # self.batch_norm_3 = BatchNormalization()
         # self.batch_norm_4 = BatchNormalization()
         # self.batch_norm_5 = BatchNormalization()
         self.conv2d_64_64_1 = Conv2D(
-            64, (1, 64), activation="relu")
+            1024, (1, 1024), activation="relu")
         self.conv2d_64_64_2 = Conv2D(
-            64, (1, 64), activation="relu")
+            1024, (1, 1024), activation="relu")
         self.conv2d_64_128 = Conv2D(
-            128, (1, 64), activation="relu")
+            2048, (1, 1024), activation="relu")
         self.conv2d_128_1024 = Conv2D(
-            1024, (1, 128), activation="relu")
-        self.maxpool = MaxPool2D((1, 1024))
+            2048, (1, 2048), activation="relu")
+        self.maxpool = MaxPool2D((1, 2048))
         self.flatten = Flatten()
         self.dense_512 = Dense(
             512, activation="relu", kernel_regularizer=l2(weight_decay))
@@ -44,7 +45,7 @@ class PointNet(Model):
         self.dense_output = Dense(classes, activation="softmax")
         self.perm = (0, 1, 3, 2)
 
-    def call(self, x, training=False):
+    def call(self, x, training=True):
         # x = self.batch_norm_1(x, training=training)
         x = self.conv2d_input(x) # batch_size x pc_len x 1 x 64
         x = tf.transpose(x, self.perm) # batch_size x pc_len x 64 x 1
@@ -89,9 +90,9 @@ class PointnetArgParser(ArgumentParser):
 
 
 def scheduler(epoch):
-    if epoch < 3:
+    if epoch < 10:
         return 0.001
-    elif epoch < 15:
+    elif epoch < 50:
         return 0.0001
     else:
         return 0.00005
@@ -129,7 +130,7 @@ def load_data_kfold(k, input_path):
     X_data = np.expand_dims(X_data, 3)
     # create labels besed on key
     Y_data = np.array(list(map(key2label, list(data.keys()))))
-    folds = list(StratifiedKFold(n_splits=k, shuffle=True, random_state=1).\
+    folds = list(StratifiedKFold(n_splits=k, shuffle=True).\
         split(X_data, Y_data))
     return folds, X_data, Y_data
 
@@ -137,27 +138,45 @@ def load_data_kfold(k, input_path):
 def train(in_path, out_path, k_fold, epochs, batch_size, drop_rate):
     # load and k-fold split the training dataset
     folds, X_data, Y_data = load_data_kfold(k_fold, in_path)
-    print("x_data shape: {}".format(X_data.shape))
+    # print("folds: {}".format(folds))
+    # print("x_data shape: {}".format(X_data.shape))
     
     # load model
     n_channels = X_data.shape[2]
-    classes = Y_data.shape[-1]
+    if len(Y_data.shape) == 1:
+        classes = 1
+    else:
+        classes = Y_data.shape[-1]
+    print("classes: {}".format(classes))
     model = PointNet(channels=n_channels,
                      classes=classes,
                      drop_rate=drop_rate)
     optimizer = Adam(0.001)
     tb_callback = TensorBoard(log_dir=out_path)
     lr_callback = LearningRateScheduler(scheduler)
-    model.compile(optimizer=optimizer,
-                  loss="binary_crossentropy",
-                  metrics=["binary_accuracy"])
+    auc_metric = tf.keras.metrics.AUC()
+    precision_metric = tf.keras.metrics.Precision()
+    recall_metric = tf.keras.metrics.Recall()
+    model.compile(
+        optimizer=optimizer,
+        loss="binary_crossentropy",
+        metrics=[
+            "binary_accuracy",
+            auc_metric,
+            precision_metric,
+            recall_metric
+        ]
+    )
     
     training_histories = list()
     for j, (train_idx, val_idx) in enumerate(folds):
         # training
-        print("\nFold:", j)
+        # print("\nFold:", j)
         X_train_cv = X_data[train_idx]
+        # print("x train cv shape: {}".format(X_train_cv.shape))
+        # print("x train cv: {}".format(X_train_cv))
         Y_train_cv = Y_data[train_idx]
+        sample_weights = compute_sample_weight('balanced', Y_train_cv)
         X_val_cv = X_data[val_idx]
         Y_val_cv = Y_data[val_idx]
         history = model.fit(
@@ -166,7 +185,9 @@ def train(in_path, out_path, k_fold, epochs, batch_size, drop_rate):
             batch_size=batch_size,
             epochs=epochs,
             callbacks=[tb_callback, lr_callback],
-            validation_data=(X_val_cv, Y_val_cv)
+            sample_weight=sample_weights,
+            validation_data=(X_val_cv, Y_val_cv),
+            shuffle=True
         )
         training_histories.append(history)
 
@@ -182,13 +203,44 @@ if __name__ == "__main__":
     # train model
     histories = train(args.input_path, args.output_path, args.kfold,
                       args.epochs, args.batch_size, args.dropout_rate)
+
     # analyze and save the training results
-    best_val = list()
+    val_accs = list()
+    val_aucs = list()
+    val_precisions = list()
+    val_recalls = list()
     for his in histories:
-        best_val.append(max(his.history["val_binary_accuracy"]))
+        val_accs.append(his.history["val_binary_accuracy"])
+        val_aucs.append(his.history["val_auc"])
+        val_precisions.append(his.history["val_precision"])
+        val_recalls.append(his.history["val_recall"])
+
+    # find best epoch
+    val_accs = np.array(val_accs)
+    avgs = np.mean(val_accs, axis=0)
+    best_epoch = np.argmax(avgs)
+    # get the accuracy and standard deviation of the best epoch
+    max_accs = val_accs[:, best_epoch]
+    acc_avg = np.mean(max_accs)
+    acc_std = np.std(max_accs)
+    # get the auc score of the best epoch
+    max_aucs = np.array(val_aucs)[:, best_epoch]
+    auc_avg = np.mean(max_aucs)
+    auc_std = np.std(max_accs)
+    # get the precision, racall, f1 score of the best epoch
+    max_precisions = np.array(val_precisions)[:, best_epoch]
+    precision_avg = np.mean(max_precisions)
+    precision_std = np.std(max_precisions)
+    max_recalls = np.array(val_recalls)[:, best_epoch]
+    recall_avg = np.mean(max_recalls)
+    recall_std = np.std(max_recalls)
+    max_f1s = 2 * max_precisions * max_recalls / (max_precisions + max_recalls)
+    f1_avg = np.mean(max_f1s)
+    f1_std = np.std(max_f1s)
     best_val = list(map(float, best_val))
     avg = st.mean(best_val)
     std = st.stdev(best_val)
+
     # write training result to file
     os.makedirs(args.output_path, exist_ok=True)
     log_prefix = os.path.basename(args.input_path).split(".")[0]
@@ -200,3 +252,8 @@ if __name__ == "__main__":
         print("{}-fold cross validation.".format(args.kfold), file=f)
         print("Input: {}".format(args.input_path), file=f)
         print("Validation accuracy is {} +- {}".format(avg, std), file=f)
+        print("AUC ROC is {} +- {}".format(auc_avg, auc_std), file=f)
+        print("Precision is {} +- {}".format(
+            precision_avg, precision_std), file=f)
+        print("Recall is {} +- {}".format(recall_avg, recall_std), file=f)
+        print("F1 score is {} +- {}".format(f1_avg, f1_std), file=f)
