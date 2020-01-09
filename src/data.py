@@ -184,10 +184,10 @@ class PointnetPocketData(PointnetData):
 
 class TOUGH_C1:
 
-    def __init__(self, random_seed=0, train_test_ratio=0.9,
+    def __init__(self, random_seed=2131, train_test_ratio=0.9,
                  subset=None):
         # root path of the TOUGH-C1 data
-        self.root = os.path.join(os.path.pardir, "data", "osfstorage-archive")
+        self.root = os.path.join(os.path.pardir, "data", "tough_c1")
         self.bin = os.path.join(os.path.pardir, "bin")
         # dict for label generation
         self.label_dict = {
