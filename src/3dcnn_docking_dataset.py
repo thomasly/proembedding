@@ -15,6 +15,7 @@ from tensorflow.keras.layers import LeakyReLU
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import to_categorical
 import numpy as np
+from sklearn.utils.class_weight import compute_sample_weight
 from tqdm import tqdm
 
 # For reproductivity
