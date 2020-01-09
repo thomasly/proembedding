@@ -161,6 +161,10 @@ def train_deepdrug(batch_size,
         tf.keras.backend.clear_session()
         # get training data with respect to the kth fold
         x, y, val_x, val_y = split_dataset_with_kfold(grids, labels, k, k_fold)
+
+        # to balance different classes
+        sample_weights = compute_sample_weight('balanced', y)
+
         val_data = (val_x, val_y)
 
         # build & compile model
@@ -170,33 +174,67 @@ def train_deepdrug(batch_size,
             decay=0.0, amsgrad=False)
         loss = "binary_crossentropy"
         metric = "binary_accuracy"
+        auc_metric = tf.keras.metrics.AUC()
+        precision_metric = tf.keras.metrics.Precision()
+        recall_metric = tf.keras.metrics.Recall()
         mdl.compile(
             optimizer=adam, loss=loss,
-            metrics=[metric])
+            metrics=[metric, auc_metric, precision_metric, recall_metric])
         # callback function for model checking
         log_d = os.path.join(log_dir, timestamp, "fold_{}".format(k))
         os.makedirs(log_d, exist_ok=True)
         tfCallBack = callbacks.TensorBoard(log_dir=log_d)
         history = mdl.fit(
             x, y, epochs = epoch, batch_size = batch_size,
-            validation_data=val_data, shuffle = True, callbacks = [tfCallBack])
+            sample_weight=sample_weights, validation_data=val_data,
+            shuffle = True, callbacks = [tfCallBack])
         histories.append(history)
+
     val_accs = list()
+    val_aucs = list()
+    val_precisions = list()
+    val_recalls = list()
     for his in histories:
         try:
             val_accs.append(his.history["val_binary_accuracy"])
         except KeyError:
             val_accs.append(his.history["val_categorical_accuracy"])
+        val_aucs.append(his.history["val_auc"])
+        val_precisions.append(his.history["val_precision"])
+        val_recalls.append(his.history["val_recall"])
+
+    # find best epoch
     val_accs = np.array(val_accs)
     avgs = np.mean(val_accs, axis=0)
     best_epoch = np.argmax(avgs)
+    # get the accuracy and standard deviation of the best epoch
     max_accs = val_accs[:, best_epoch]
     acc_avg = np.mean(max_accs)
     acc_std = np.std(max_accs)
+    # get the auc score of the best epoch
+    max_aucs = np.array(val_aucs)[:, best_epoch]
+    auc_avg = np.mean(max_aucs)
+    auc_std = np.std(max_accs)
+    # get the precision, racall, f1 score of the best epoch
+    max_precisions = np.array(val_precisions)[:, best_epoch]
+    precision_avg = np.mean(max_precisions)
+    precision_std = np.std(max_precisions)
+    max_recalls = np.array(val_recalls)[:, best_epoch]
+    recall_avg = np.mean(max_recalls)
+    recall_std = np.std(max_recalls)
+    max_f1s = 2 * max_precisions * max_recalls / (max_precisions + max_recalls)
+    f1_avg = np.mean(max_f1s)
+    f1_std = np.std(max_f1s)
+    # print and save the training results
     print(
         "{}-fold cross validation performs the best "
         "at epoch {}".format(k_fold, best_epoch))
     print("Accuracy is {} +- {}".format(acc_avg, acc_std))
+    print("AUC ROC is {} +- {}".format(auc_avg, auc_std))
+    print("Precision is {} +- {}".format(precision_avg, precision_std))
+    print("Recall is {} +- {}".format(recall_avg, recall_std))
+    print("F1 score is {} +- {}".format(f1_avg, f1_std))
+    print()
     with open(os.path.join(log_dir, timestamp, "readme"), "w") as f:
         print("dataset: {}".format(os.path.basename(input)), file=f)
         print("batch size: {}".format(batch_size), file=f)
@@ -208,6 +246,11 @@ def train_deepdrug(batch_size,
             "at epoch {}".format(k_fold, best_epoch),
             file=f)
         print("Accuracy is {} +- {}".format(acc_avg, acc_std), file=f)
+        print("AUC ROC is {} +- {}".format(auc_avg, auc_std), file=f)
+        print("Precision is {} +- {}".format(
+            precision_avg, precision_std), file=f)
+        print("Recall is {} +- {}".format(recall_avg, recall_std), file=f)
+        print("F1 score is {} +- {}".format(f1_avg, f1_std), file=f)
     #     # save the model
     # if output == None:
     #     mdl.save('deepdrug3d.h5')
