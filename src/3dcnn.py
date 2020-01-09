@@ -183,7 +183,6 @@ def train_deepdrug(batch_size,
 
         # to balance different classes
         sample_weights = compute_sample_weight('balanced', y)
-        print("sample weights: {}, shape: {}".format(sample_weights, sample_weights.shape))
           
         val_data = (val_x, val_y)
         # build & compile model
@@ -194,9 +193,12 @@ def train_deepdrug(batch_size,
         loss = "binary_crossentropy" if classes==1 \
             else "categorical_crossentropy"
         metric = "binary_accuracy" if classes == 1 else "categorical_accuracy"
+        auc_metric = tf.metrics.AUC()
+        precision_metric = tf.metrics.Precision()
+        recall_metric = tf.metrics.Recall()
         mdl.compile(
             optimizer=adam, loss=loss,
-            metrics=[metric])
+            metrics=[metric, auc_metric, precision_metric, recall_metric])
         # callback function for model checking
         log_dir = os.path.join('training_logs', timestamp, f"fold_{k}")
         os.makedirs(log_dir, exist_ok=True)
@@ -206,34 +208,61 @@ def train_deepdrug(batch_size,
             sample_weight=sample_weights, validation_data=val_data,
             shuffle = True, callbacks = [tfCallBack])
         histories.append(history)
+    
+    # log the metrics after each cross-validation training
     val_accs = list()
+    val_aucs = list()
+    val_precisions = list()
+    val_recalls = list()
     for his in histories:
         try:
             val_accs.append(his.history["val_binary_accuracy"])
         except KeyError:
             val_accs.append(his.history["val_categorical_accuracy"])
+        val_aucs.append(his.history["val_auc"])
+        val_precisions.append(his.history["val_precision"])
+        val_recalls.append(his.history["val_recall"])
+
+    # find best epoch
     val_accs = np.array(val_accs)
     avgs = np.mean(val_accs, axis=0)
     best_epoch = np.argmax(avgs)
+    # get the accuracy and standard deviation of the best epoch
     max_accs = val_accs[:, best_epoch]
     acc_avg = np.mean(max_accs)
     acc_std = np.std(max_accs)
+    # get the auc score of the best epoch
+    max_aucs = np.array(val_aucs)[:, best_epoch]
+    auc_avg = np.mean(max_aucs)
+    auc_std = np.std(max_accs)
+    # get the f1 score of the best epoch
+    max_precisions = np.array(val_precisions)[:, best_epoch]
+    max_recalls = np.array(val_recalls)[:, best_epoch]
+    max_f1s = 2 * max_precisions * max_recalls / (max_precisions + max_recalls)
+    f1_avg = np.mean(max_f1s)
+    f1_std = np.std(max_f1s)
+    # print and save the training results
     print(
-        f"{k_fold}-fold cross validation performs the best "
-        f"at epoch {best_epoch}")
-    print(f"Accuracy is {acc_avg} +- {acc_std}")
+        "{}-fold cross validation performs the best "
+        "at epoch {}".format(k_fold, best_epoch+1))
+    print("Accuracy is {} +- {}".format(acc_avg, acc_std))
+    print("AUC ROC is {} +- {}".format(auc_avg, auc_std))
+    print("F1 score is {} +- {}".format(f1_avg, f1_std))
+    print() 
     with open(os.path.join("training_logs", timestamp, "readme"), "w") as f:
-        print(f"dataset: {subset}", file=f)
-        print(f"grid type: {suffix}", file=f)
-        print(f"batch size: {batch_size}", file=f)
-        print(f"learning rate: {lr}", file=f)
-        print(f"epochs: {epoch}", file=f)
-        print(f"validation folds: {k_fold}", file=f)
+        print("dataset: {}".format(subset), file=f)
+        print("grid type: {}".format(suffix), file=f)
+        print("batch size: {}".format(batch_size), file=f)
+        print("learning rate: {}".format(lr), file=f)
+        print("epochs: {}".format(epoch), file=f)
+        print("validation folds: {}".format(k_fold), file=f)
         print(
-            f"{k_fold}-fold cross validation performs the best "
-            f"at epoch {best_epoch}",
+            "{}-fold cross validation performs the best "
+            "at epoch {}".format(k_fold, best_epoch+1),
             file=f)
-        print(f"Accuracy is {acc_avg} +- {acc_std}", file=f)
+        print("Accuracy is {} +- {}".format(acc_avg, acc_std), file=f)
+        print("AUC ROC is {} +- {}".format(auc_avg, auc_std), file=f)
+        print("F1 score is {} +- {}".format(f1_avg, f1_std), file=f)
     #     # save the model
     # if output == None:
     #     mdl.save('deepdrug3d.h5')
