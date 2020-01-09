@@ -193,9 +193,9 @@ def train_deepdrug(batch_size,
         loss = "binary_crossentropy" if classes==1 \
             else "categorical_crossentropy"
         metric = "binary_accuracy" if classes == 1 else "categorical_accuracy"
-        auc_metric = tf.metrics.AUC()
-        precision_metric = tf.metrics.Precision()
-        recall_metric = tf.metrics.Recall()
+        auc_metric = tf.keras.metrics.AUC()
+        precision_metric = tf.keras.metrics.Precision()
+        recall_metric = tf.keras.metrics.Recall()
         mdl.compile(
             optimizer=adam, loss=loss,
             metrics=[metric, auc_metric, precision_metric, recall_metric])
