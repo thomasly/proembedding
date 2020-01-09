@@ -75,12 +75,12 @@ class PointNet(Model):
 def parse_argv(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--resi-channel",
-                        help="If to use residue channel in the input.",
+                        help="Whether to use residue channel in the input.",
                         action="store_true")
     parser.add_argument("-b", "--batch-size", type=int, default=32,
                         help="Size of mini batch.")
     parser.add_argument("-a", "--atom-channel",
-                        help="If to use atom channel in the input.",
+                        help="Whether to use atom channel in the input.",
                         action="store_true")
     parser.add_argument("-e", "--epoch", default=10, type=int,
                         help="Number of training epochs")
@@ -93,6 +93,9 @@ def parse_argv(argv=None):
                         help="Drop rate of the dropout layers during training")
     parser.add_argument("-t", "--train-test-ratio", default=0.7, type=float,
                         help="The ratio of training and testing sets.")
+    parser.add_argument("-n", "--random-seed", default=0, type=int,
+                        help="The random seed for splitting training and \
+                            testing datasets")
     return parser.parse_args(argv)
 
 
@@ -105,40 +108,66 @@ def scheduler(epoch):
         return 0.00005
  
 
-def train():
+def _determine_channels(resi_channel, atom_channel):
+    if not (resi_channel or atom_channel):
+        return 3
+    elif resi_channel and atom_channel:
+        return 5
+    else:
+        return 4
+
+def train(args):
     # training args
-    args = parse_argv(sys.argv[1:])
     resi_name_channel = args.resi_channel
     atom_name_channel = args.atom_channel
     epochs = args.epoch
     batch_size = args.batch_size
-    classes = args.classes
+    if args.classes == 1 or args.classes == 2:
+        classes = 1
+    else:
+        classes = args.classes
     subset = args.subset
     dropout_rate = args.dropout_rate
     train_test_ratio = args.train_test_ratio
+    random_seed = args.random_seed
     # dataset
     tp = TOUGH_Point_Pocket(batch_size=batch_size,
                      resi_name_channel=resi_name_channel,
                      atom_name_channel=atom_name_channel,
                      subset=subset, label_len=classes,
-                     train_test_ratio=train_test_ratio) 
+                     train_test_ratio=train_test_ratio,
+                     random_seed=random_seed) 
     # load model
-    n_channels = 3
-    if resi_name_channel:
-        n_channels += 1
-    if atom_name_channel:
-        n_channels += 1
+    n_channels = _determine_channels(resi_name_channel, atom_name_channel)
     model = PointNet(channels=n_channels,
                      classes=classes,
                      drop_rate=dropout_rate)
     optimizer = Adam(0.001)
     tb_callback = TensorBoard()
     lr_callback = LearningRateScheduler(scheduler)
-    model.compile(optimizer=optimizer,
-                  loss="categorical_crossentropy",
-                  metrics=["categorical_accuracy", "mse"])
+    auc_metric = tf.keras.metrics.AUC()
+    precision_metric = tf.keras.metrics.Precision()
+    recall_metric = tf.keras.metrics.Recall()
+    if classes == 1:
+        loss = "binary_crossentropy"
+        accuracy = "binary_accuracy"
+    else:
+        loss = "categorical_crossentropy"
+        accuracy = "categorical_accuracy"
+    
+    model.compile(
+        optimizer=optimizer,
+        loss=loss,
+        metrics=[
+            accuracy,
+            "mse",
+            auc_metric,
+            precision_metric,
+            recall_metric
+        ]
+    )
     # training
-    model.fit_generator(
+    history = model.fit_generator(
         generator=tp.train(),
         steps_per_epoch=tp.train_steps,
         epochs=epochs,
@@ -146,8 +175,77 @@ def train():
         validation_steps=tp.test_steps,
         callbacks=[tb_callback, lr_callback]
     )
-    print(model.summary())
+    # print(model.summary())
+    return history
 
 
 if __name__ == "__main__":
-    train()
+    import statistics as st
+    from tqdm import tqdm
+    for s in tqdm(["touch-c1", "nucleotide", "heme"]):
+        training_histories = list()
+        for n in tqdm(range(10)):
+            tf.keras.backend.clear_session()
+            if s == "touch-c1":
+                argv = "-r -e 30 -t 0.9 -c 4 -n {}".format(n)
+            else:
+                argv = "-r -e 30 -t 0.9 -c 2 -s {} -n {}".format(s, n)
+            args = parse_argv(argv.split())
+            his = train(args)
+            training_histories.append(his)
+        
+        # analyze and save the training results
+        val_accs = list()
+        val_aucs = list()
+        val_precisions = list()
+        val_recalls = list()
+        for his in training_histories:
+            try:
+                val_accs.append(his.history["val_categorical_accuracy"])
+            except KeyError:
+                val_accs.append(his.history["val_binary_accuracy"])
+            val_aucs.append(his.history["val_auc"])
+            val_precisions.append(his.history["val_precision"])
+            val_recalls.append(his.history["val_recall"])
+
+        # find best epoch
+        val_accs = np.array(val_accs)
+        avgs = np.mean(val_accs, axis=0)
+        best_epoch = np.argmax(avgs)
+        # get the accuracy and standard deviation of the best epoch
+        max_accs = val_accs[:, best_epoch]
+        acc_avg = np.mean(max_accs)
+        acc_std = np.std(max_accs)
+        # get the auc score of the best epoch
+        max_aucs = np.array(val_aucs)[:, best_epoch]
+        auc_avg = np.mean(max_aucs)
+        auc_std = np.std(max_accs)
+        # get the precision, racall, f1 score of the best epoch
+        max_precisions = np.array(val_precisions)[:, best_epoch]
+        precision_avg = np.mean(max_precisions)
+        precision_std = np.std(max_precisions)
+        max_recalls = np.array(val_recalls)[:, best_epoch]
+        recall_avg = np.mean(max_recalls)
+        recall_std = np.std(max_recalls)
+        max_f1s = 2 * max_precisions * max_recalls / (max_precisions + max_recalls)
+        f1_avg = np.mean(max_f1s)
+        f1_std = np.std(max_f1s)
+
+        with open(os.path.join("training_logs", s+".log"), "w") as f:
+            print("pointnet dataset: {}".format(s), file=f)
+            print("residue name channel: {}".format(args.resi_channel), file=f)
+            print("atom name channel: {}".format(args.atom_channel), file=f)
+            print("batch size: {}".format(args.batch_size), file=f)
+            print("learning rate: 0.001 with decay", file=f)
+            print("epochs: {}".format(args.epoch), file=f)
+            print("validation folds: 10", file=f)
+            print(
+                "10-fold cross validation performs the best "
+                "at epoch {}".format(best_epoch),
+                file=f)
+            print("Accuracy is {} +- {}".format(acc_avg, acc_std), file=f)
+            print("AUC ROC is {} +- {}".format(auc_avg, auc_std), file=f)
+            print("Precision is {} +- {}".format(
+                precision_avg, precision_std), file=f)
+            print("Recall is {} +- {}".format(recall_avg, recall_std), file=f)
+            print("F1 score is {} +- {}".format(f1_avg, f1_std), file=f)
