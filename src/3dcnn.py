@@ -235,9 +235,13 @@ def train_deepdrug(batch_size,
     max_aucs = np.array(val_aucs)[:, best_epoch]
     auc_avg = np.mean(max_aucs)
     auc_std = np.std(max_accs)
-    # get the f1 score of the best epoch
+    # get the precision, racall, f1 score of the best epoch
     max_precisions = np.array(val_precisions)[:, best_epoch]
+    precision_avg = np.mean(max_precisions)
+    precision_std = np.std(max_precisions)
     max_recalls = np.array(val_recalls)[:, best_epoch]
+    recall_avg = np.mean(max_recalls)
+    recall_std = np.std(max_recalls)
     max_f1s = 2 * max_precisions * max_recalls / (max_precisions + max_recalls)
     f1_avg = np.mean(max_f1s)
     f1_std = np.std(max_f1s)
@@ -247,6 +251,8 @@ def train_deepdrug(batch_size,
         "at epoch {}".format(k_fold, best_epoch+1))
     print("Accuracy is {} +- {}".format(acc_avg, acc_std))
     print("AUC ROC is {} +- {}".format(auc_avg, auc_std))
+    print("Precision is {} +- {}".format(precision_avg, precision_std))
+    print("Recall is {} +- {}".format(recall_avg, recall_std))
     print("F1 score is {} +- {}".format(f1_avg, f1_std))
     print() 
     with open(os.path.join("training_logs", timestamp, "readme"), "w") as f:
@@ -262,6 +268,9 @@ def train_deepdrug(batch_size,
             file=f)
         print("Accuracy is {} +- {}".format(acc_avg, acc_std), file=f)
         print("AUC ROC is {} +- {}".format(auc_avg, auc_std), file=f)
+        print("Precision is {} +- {}".format(
+            precision_avg, precision_std), file=f)
+        print("Recall is {} +- {}".format(recall_avg, recall_std), file=f)
         print("F1 score is {} +- {}".format(f1_avg, f1_std), file=f)
     #     # save the model
     # if output == None:
