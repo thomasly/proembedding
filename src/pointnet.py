@@ -123,7 +123,7 @@ def train(args):
     epochs = args.epoch
     batch_size = args.batch_size
     if args.classes == 1 or args.classes == 2:
-        classes = 1
+        classes = 2
     else:
         classes = args.classes
     subset = args.subset
@@ -148,12 +148,8 @@ def train(args):
     auc_metric = tf.keras.metrics.AUC()
     precision_metric = tf.keras.metrics.Precision()
     recall_metric = tf.keras.metrics.Recall()
-    if classes == 1:
-        loss = "binary_crossentropy"
-        accuracy = "binary_accuracy"
-    else:
-        loss = "categorical_crossentropy"
-        accuracy = "categorical_accuracy"
+    loss = "categorical_crossentropy"
+    accuracy = "categorical_accuracy"
     
     model.compile(
         optimizer=optimizer,
@@ -182,7 +178,10 @@ def train(args):
 if __name__ == "__main__":
     import statistics as st
     from tqdm import tqdm
-    for s in tqdm(["touch-c1", "nucleotide", "heme"]):
+    for s in tqdm([
+        "touch-c1", 
+        "nucleotide", 
+        "heme"]):
         training_histories = list()
         for n in tqdm(range(10)):
             tf.keras.backend.clear_session()
@@ -200,10 +199,7 @@ if __name__ == "__main__":
         val_precisions = list()
         val_recalls = list()
         for his in training_histories:
-            try:
-                val_accs.append(his.history["val_categorical_accuracy"])
-            except KeyError:
-                val_accs.append(his.history["val_binary_accuracy"])
+            val_accs.append(his.history["val_categorical_accuracy"])
             val_aucs.append(his.history["val_auc"])
             val_precisions.append(his.history["val_precision"])
             val_recalls.append(his.history["val_recall"])
