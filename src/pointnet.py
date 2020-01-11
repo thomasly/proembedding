@@ -227,7 +227,9 @@ if __name__ == "__main__":
         f1_avg = np.mean(max_f1s)
         f1_std = np.std(max_f1s)
 
-        with open(os.path.join("training_logs", s+".log"), "w") as f:
+        logdir = os.path.join("training_logs", "pointnet_toughc1", s+".log")
+        os.makedirs(logdir, exist_ok=True)
+        with open(logdir, "w") as f:
             print("pointnet dataset: {}".format(s), file=f)
             print("residue name channel: {}".format(args.resi_channel), file=f)
             print("atom name channel: {}".format(args.atom_channel), file=f)
