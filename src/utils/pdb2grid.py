@@ -14,38 +14,22 @@ class PDB2Grid:
     def __init__(self, pdb_f: str):
         self.pdb = PDB(pdb_f)
 
-
-    # @staticmethod
-    # def density_function(radius):
-    #     if radius <= 2:
-    #         return math.exp(-radius**2/2)
-    #     else:
-    #         return 0.0
-
-    def create_grid(self, dimension, channel=1):
-        return np.array(
-            (dimension, dimension,dimension, channel), type=np.float16)
-
     def _initialize_grid(self, dimension):
-        self.grid = np.zeros(
-            (dimension, dimension, dimension, 3), dtype=np.float16)
-        for i in range(dimension):
-            for j in range(dimension):
-                for k in range(dimension):
-                    self.grid[i][j][k] = np.array([i, j, k])
+        self._grid = np.mgrid[
+            :dimension, :dimension, dimension].astype(np.float16)
+        self._grid = np.transpose(self._grid, (1, 2, 3, 0))
 
     def put_atom_to_grid(self,
                          coordinates,
                          dimension,
-                         channel=0,
                          cutoff=2,
                          power=2):
         start = int(dimension//2)
         try:
-            grid = copy.deepcopy(self.grid) 
+            grid = copy.deepcopy(self._grid) 
         except AttributeError:
             self._initialize_grid(dimension)
-            grid = copy.deepcopy(self.grid)
+            grid = copy.deepcopy(self._grid)
         grid = grid - start
         distances = np.linalg.norm((grid - coordinates), axis=3)
         atom_rep = np.where(distances < cutoff, distances, float("inf"))
@@ -148,8 +132,10 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     p = PDB2Grid("../data/tough_c1/protein-control/5c11A.pdb")
-    ca_grid = p.get_pocket_ca_res_grid([18, 19, 20, 22, 28, 41, 42, 43, 44, 45, 46])
-    rotated_ca_grid = p.get_pocket_ca_res_pca_grid([18, 19, 20, 22, 28, 41, 42, 43, 44, 45, 46])
+    ca_grid = p.get_pocket_ca_res_grid(
+        [18, 19, 20, 22, 28, 41, 42, 43, 44, 45, 46])
+    rotated_ca_grid = p.get_pocket_ca_res_pca_grid(
+        [18, 19, 20, 22, 28, 41, 42, 43, 44, 45, 46])
     z,x,y = ca_grid[2].nonzero()
     z2, x2, y2 = rotated_ca_grid[2].nonzero()
     fig = plt.figure()
