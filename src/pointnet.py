@@ -43,7 +43,10 @@ class PointNet(Model):
         self.dense_256 = Dense(
             256, activation="relu", kernel_regularizer=l2(weight_decay))
         self.dropout = Dropout(drop_rate)
-        self.dense_output = Dense(classes, activation="softmax")
+        if classes == 1:
+            self.dense_output = Dense(classes, activation="sigmoid")
+        else:
+            self.dense_output = Dense(classes, activation="softmax")
         self.perm = (0, 1, 3, 2)
 
     def call(self, x, training=False):
@@ -96,6 +99,8 @@ def parse_argv(argv=None):
     parser.add_argument("-n", "--random-seed", default=0, type=int,
                         help="The random seed for splitting training and \
                             testing datasets")
+    parser.add_argument("-p", "--pca-rotate", action="store_true",
+                        help="If rotate the dataset to align with PCAs.")           
     return parser.parse_args(argv)
 
 
@@ -117,13 +122,19 @@ def _determine_channels(resi_channel, atom_channel):
         return 4
 
 def train(args):
+    # optimize gpu memory usage 
+    physical_devices = tf.config.experimental.list_physical_devices('GPU')
+    assert len(physical_devices) > 0
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
     # training args
     resi_name_channel = args.resi_channel
     atom_name_channel = args.atom_channel
     epochs = args.epoch
     batch_size = args.batch_size
+    pca_rotate = args.pca_rotate
     if args.classes == 1 or args.classes == 2:
-        classes = 2
+        classes = 1
     else:
         classes = args.classes
     subset = args.subset
@@ -136,6 +147,7 @@ def train(args):
                      atom_name_channel=atom_name_channel,
                      subset=subset, label_len=classes,
                      train_test_ratio=train_test_ratio,
+                     pca_rotate=pca_rotate,
                      random_seed=random_seed) 
     # load model
     n_channels = _determine_channels(resi_name_channel, atom_name_channel)
@@ -148,8 +160,12 @@ def train(args):
     auc_metric = tf.keras.metrics.AUC()
     precision_metric = tf.keras.metrics.Precision()
     recall_metric = tf.keras.metrics.Recall()
-    loss = "categorical_crossentropy"
-    accuracy = "categorical_accuracy"
+    if classes == 1:
+        loss = "binary_crossentropy"
+        accuracy = "binary_accuracy"
+    else:
+        loss = "categorical_crossentropy"
+        accuracy = "categorical_accuracy"
     
     model.compile(
         optimizer=optimizer,
@@ -179,7 +195,7 @@ if __name__ == "__main__":
     import statistics as st
     from tqdm import tqdm
     for s in tqdm([
-        "touch-c1", 
+        # "touch-c1", 
         "nucleotide", 
         "heme"]):
         training_histories = list()
@@ -199,7 +215,10 @@ if __name__ == "__main__":
         val_precisions = list()
         val_recalls = list()
         for his in training_histories:
-            val_accs.append(his.history["val_categorical_accuracy"])
+            try:
+                val_accs.append(his.history["val_categorical_accuracy"])
+            except KeyError:
+                val_accs.append(his.history["val_binary_accuracy"])
             val_aucs.append(his.history["val_auc"])
             val_precisions.append(his.history["val_precision"])
             val_recalls.append(his.history["val_recall"])
@@ -227,9 +246,9 @@ if __name__ == "__main__":
         f1_avg = np.mean(max_f1s)
         f1_std = np.std(max_f1s)
 
-        logdir = os.path.join("training_logs", "pointnet_toughc1", s+".log")
+        logdir = os.path.join("training_logs", "pointnet_toughc1")
         os.makedirs(logdir, exist_ok=True)
-        with open(logdir, "w") as f:
+        with open(os.path.join(logdir, s+".pca.log"), "w") as f:
             print("pointnet dataset: {}".format(s), file=f)
             print("residue name channel: {}".format(args.resi_channel), file=f)
             print("atom name channel: {}".format(args.atom_channel), file=f)

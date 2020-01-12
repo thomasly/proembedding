@@ -42,7 +42,10 @@ class PointNet(Model):
         self.dense_256 = Dense(
             256, activation="relu", kernel_regularizer=l2(weight_decay))
         self.dropout = Dropout(drop_rate)
-        self.dense_output = Dense(classes, activation="softmax")
+        if classes == 1:
+            self.dense_output = Dense(classes, activation="sigmoid")
+        else:
+            self.dense_output = Dense(classes, activation="softmax")
         self.perm = (0, 1, 3, 2)
 
     def call(self, x, training=True):
@@ -91,11 +94,11 @@ class PointnetArgParser(ArgumentParser):
 
 def scheduler(epoch):
     if epoch < 10:
-        return 0.001
-    elif epoch < 50:
         return 0.0001
+    elif epoch < 50:
+        return 0.00001
     else:
-        return 0.00005
+        return 0.000005
 
 
 def key2label(key):
@@ -151,7 +154,7 @@ def train(in_path, out_path, k_fold, epochs, batch_size, drop_rate):
     model = PointNet(channels=n_channels,
                      classes=classes,
                      drop_rate=drop_rate)
-    optimizer = Adam(0.001)
+    optimizer = Adam(0.0001)
     tb_callback = TensorBoard(log_dir=out_path)
     lr_callback = LearningRateScheduler(scheduler)
     auc_metric = tf.keras.metrics.AUC()
