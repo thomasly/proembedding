@@ -8,6 +8,7 @@ import pickle as pk
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from sklearn.decomposition import PCA
 
 class BatchGenerator:
     """ Batch generator base class. Implement the _create_batch abstract method
@@ -92,7 +93,14 @@ class PointnetData(BatchGenerator):
         sample_counter = 0
         for i in batch_indices:
             sample_id = self.data_ls[i].id
-            label = self._one_hot(min(self.label_len-1, self.data_ls[i].label))
+            if self.label_len > 1:
+                label = self._one_hot(
+                    min(self.label_len-1, self.data_ls[i].label))
+            else:
+                if self.data_ls[i].label != 0:
+                    label = 1
+                else:
+                    label = 0
             data = self.dataset[sample_id]
             pointcloud = np.zeros(
                 (self.pointcloud_len, self.point_channels, 1),
@@ -155,7 +163,14 @@ class PointnetPocketData(PointnetData):
         sample_counter = 0
         for i in batch_indices:
             sample_id = self.data_ls[i].id
-            label = self._one_hot(min(self.label_len-1, self.data_ls[i].label))
+            if self.label_len > 1:
+                label = self._one_hot(
+                    min(self.label_len-1, self.data_ls[i].label))
+            else:
+                if self.data_ls[i].label != 0:
+                    label = 1
+                else:
+                    label = 0
             data = self.dataset[sample_id]
             pocket_residues = self.pockets[sample_id]
             pointcloud = np.zeros(
@@ -225,7 +240,7 @@ class TOUGH_C1:
             ret_ls.append(Protein(label=lb, id=line))
         return ret_ls
 
-    def _load_tar(self, path):
+    def _load_tar(self, path, pca_rotate=False):
         """ Load pdb files from the .tar.gz files
         """
         tar = tarfile.open(os.path.join(self.root, path))
@@ -279,9 +294,20 @@ class TOUGH_C1:
                     atom_id, atom_name, residue_id, residue_name, x, y, z)
                 atom_ls.append(atom)
             atom_df = pd.DataFrame(atom_ls, columns=Atom._fields)
-            atom_df.x = atom_df.x - atom_df.x.mean()
-            atom_df.y = atom_df.y - atom_df.y.mean()
-            atom_df.z = atom_df.z - atom_df.z.mean()
+
+            if pca_rotate:
+                atom_coor = atom_df[["x", "y", "z"]].to_numpy()
+                pca = PCA(n_components=3)
+                pca.fit(atom_coor)
+                atom_coor = pca.transform(atom_coor)
+                avgs = np.mean(atom_coor, axis=0)
+                atom_coor = atom_coor - avgs
+                atom_df[["x", "y", "z"]] = atom_coor
+            else:
+                atom_df.x = atom_df.x - atom_df.x.mean()
+                atom_df.y = atom_df.y - atom_df.y.mean()
+                atom_df.z = atom_df.z - atom_df.z.mean()
+
             pdb_info[name] = atom_df
         
         return pdb_info
@@ -325,10 +351,13 @@ class TOUGH_C1:
         train_ls += target_ls[:splitor]
         test_ls += target_ls[splitor:]
 
-    def _load_dataset(self):
+    def _load_dataset(self, pca_rotate=False):
         """ Load the whole dataset from .tar.gz files
         """
-        pointnet_data_path = os.path.join(self.bin, "tough_c1_data")
+        if pca_rotate:
+            pointnet_data_path = os.path.join(self.bin, "tough_c1_data_pca")
+        else:
+            pointnet_data_path = os.path.join(self.bin, "tough_c1_data")
         try:
             with open(pointnet_data_path, "rb") as f:
                 self.dataset = pk.load(f)
@@ -338,7 +367,7 @@ class TOUGH_C1:
                       "protein-heme.tar.gz",
                       "protein-nucleotide.tar.gz",
                       "protein-steroid.tar.gz"]:
-                self.dataset.update(self._load_tar(p))
+                self.dataset.update(self._load_tar(p, pca_rotate))
             with open(pointnet_data_path, "wb") as f:
                 pk.dump(self.dataset, f)
 
@@ -350,11 +379,13 @@ class TOUGH_Point(TOUGH_C1):
                  pointcloud_len=1024,
                  random_seed=0,
                  train_test_ratio=0.9,
+                 pca_rotate=False,
                  subset=None,
                  resi_name_channel=False,
                  label_len=4):
         super(TOUGH_Point, self).__init__(
             random_seed, train_test_ratio, subset)
+        self.pca_rotate = pca_rotate
         self.batch_size = batch_size
         self.pointcloud_len = pointcloud_len
         self.resi_name_channel = resi_name_channel
@@ -362,7 +393,7 @@ class TOUGH_Point(TOUGH_C1):
 
     def train(self):
         if self.dataset is None:
-            self._load_dataset()
+            self._load_dataset(self.pca_rotate)
         train_set = PointnetData(
             self.train_ls, self.dataset, self.batch_size,
             self.pointcloud_len, resi_name_channel=self.resi_name_channel,
@@ -373,7 +404,7 @@ class TOUGH_Point(TOUGH_C1):
 
     def test(self):
         if self.dataset is None:
-            self._load_dataset()
+            self._load_dataset(self.pca_rotate)
         test_set = PointnetData(
             self.test_ls, self.dataset, self.batch_size,
             self.pointcloud_len, if_shuffle=False,
@@ -408,6 +439,7 @@ class TOUGH_Point_Pocket(TOUGH_Point):
                  pointcloud_len=1024,
                  random_seed=0,
                  train_test_ratio=0.7,
+                 pca_rotate=False,
                  subset=None,
                  resi_name_channel=False,
                  atom_name_channel=False,
@@ -415,7 +447,7 @@ class TOUGH_Point_Pocket(TOUGH_Point):
                  pocket_type="lpc"):
         super(TOUGH_Point_Pocket, self).__init__(
             batch_size, pointcloud_len, random_seed, train_test_ratio,
-            subset, resi_name_channel, label_len)
+            pca_rotate, subset, resi_name_channel, label_len)
         self.atom_name_channel = atom_name_channel
         self.pocket_type = pocket_type
         self.pockets = None
@@ -455,7 +487,7 @@ class TOUGH_Point_Pocket(TOUGH_Point):
         if self.pockets is None:
             self._load_pockets()
         if self.dataset is None:
-            self._load_dataset()
+            self._load_dataset(self.pca_rotate)
         train_set = PointnetPocketData(
             self.train_ls, self.dataset, self.pockets, self.batch_size,
             self.pointcloud_len, atom_name_channel=self.atom_name_channel,
@@ -468,7 +500,7 @@ class TOUGH_Point_Pocket(TOUGH_Point):
         if self.pockets is None:
             self._load_pockets()
         if self.dataset is None:
-            self._load_dataset()
+            self._load_dataset(self.pca_rotate)
         test_set = PointnetPocketData(
             self.test_ls, self.dataset, self.pockets, self.batch_size,
             self.pointcloud_len, if_shuffle=False,

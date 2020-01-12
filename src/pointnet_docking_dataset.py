@@ -14,6 +14,7 @@ from tensorflow.keras.callbacks import TensorBoard, LearningRateScheduler
 from sklearn.model_selection import StratifiedKFold
 import numpy as np
 from sklearn.utils.class_weight import compute_sample_weight
+from sklearn.decomposition import PCA
 
 
 class PointNet(Model):
@@ -90,6 +91,9 @@ class PointnetArgParser(ArgumentParser):
                           help="Number of training epochs.")
         self.add_argument("-d", "--dropout-rate", default=0.1, type=float,
                           help="Drop rate of the dropout layers.")
+        self.add_argument("-p", "--pca", action="store_true",
+                          help="If to rotate the data by aligning to"
+                               " principle components.")
 
 
 def scheduler(epoch):
@@ -121,10 +125,18 @@ def find_longest_pointcloud(pointclouds):
     return max_len
 
 
-def load_data_kfold(k, input_path):
+def load_data_kfold(k, input_path, pca_rotate=False):
     with open(input_path, "rb") as f:
         data = pk.load(f)
     X_data = list(data.values())
+    #rotate points by aligning to principle components
+    if pca_rotate:
+        X_data = np.array(X_data)
+        for i, point_cloud in enumerate(X_data):
+            pca = PCA(n_components=3)
+            pca.fit(point_cloud[:, 0:3])
+            X_data[i][:, 0:3] = pca.transform(point_cloud[:, 0:3])
+        X_data = X_data.tolist()
     # find the longest pointcloud in the dataset
     max_len = find_longest_pointcloud(X_data)
     # pad all the point clouds with 0 to max len and convert to numpy array
@@ -138,9 +150,9 @@ def load_data_kfold(k, input_path):
     return folds, X_data, Y_data
 
  
-def train(in_path, out_path, k_fold, epochs, batch_size, drop_rate):
+def train(in_path, out_path, k_fold, epochs, batch_size, drop_rate, pca=False):
     # load and k-fold split the training dataset
-    folds, X_data, Y_data = load_data_kfold(k_fold, in_path)
+    folds, X_data, Y_data = load_data_kfold(k_fold, in_path, pca_rotate=pca)
     # print("folds: {}".format(folds))
     # print("x_data shape: {}".format(X_data.shape))
     
@@ -160,19 +172,23 @@ def train(in_path, out_path, k_fold, epochs, batch_size, drop_rate):
     auc_metric = tf.keras.metrics.AUC()
     precision_metric = tf.keras.metrics.Precision()
     recall_metric = tf.keras.metrics.Recall()
-    model.compile(
-        optimizer=optimizer,
-        loss="binary_crossentropy",
-        metrics=[
-            "binary_accuracy",
-            auc_metric,
-            precision_metric,
-            recall_metric
-        ]
-    )
     
     training_histories = list()
     for j, (train_idx, val_idx) in enumerate(folds):
+        tf.keras.backend.clear_session()
+        model = PointNet(channels=n_channels,
+            classes=classes,
+            drop_rate=drop_rate)
+        model.compile(
+            optimizer=optimizer,
+            loss="binary_crossentropy",
+            metrics=[
+                "binary_accuracy",
+                auc_metric,
+                precision_metric,
+                recall_metric
+            ]
+        )
         # training
         # print("\nFold:", j)
         X_train_cv = X_data[train_idx]
@@ -205,7 +221,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     # train model
     histories = train(args.input_path, args.output_path, args.kfold,
-                      args.epochs, args.batch_size, args.dropout_rate)
+                      args.epochs, args.batch_size, args.dropout_rate,
+                      pca=args.pca)
 
     # analyze and save the training results
     val_accs = list()
@@ -240,21 +257,24 @@ if __name__ == "__main__":
     max_f1s = 2 * max_precisions * max_recalls / (max_precisions + max_recalls)
     f1_avg = np.mean(max_f1s)
     f1_std = np.std(max_f1s)
-    best_val = list(map(float, best_val))
-    avg = st.mean(best_val)
-    std = st.stdev(best_val)
+    # best_val = list(map(float, best_val))
+    # avg = st.mean(best_val)
+    # std = st.stdev(best_val)
 
     # write training result to file
     os.makedirs(args.output_path, exist_ok=True)
     log_prefix = os.path.basename(args.input_path).split(".")[0]
-    log_name = log_prefix+"_pointnet_training.log"
+    if args.pca:
+        log_name = log_prefix+"_pointnet_training.pca.log"
+    else:
+        log_name = log_prefix+"_pointnet_training.log"
     with open(os.path.join(args.output_path, log_name), "w") as f:
         print("Training dataset: {}".format(log_prefix), file=f)
         print("Batch size: {}".format(args.batch_size), file=f)
         print("Epochs: {}".format(args.epochs), file=f)
         print("{}-fold cross validation.".format(args.kfold), file=f)
         print("Input: {}".format(args.input_path), file=f)
-        print("Validation accuracy is {} +- {}".format(avg, std), file=f)
+        print("Validation accuracy is {} +- {}".format(acc_avg, acc_std), file=f)
         print("AUC ROC is {} +- {}".format(auc_avg, auc_std), file=f)
         print("Precision is {} +- {}".format(
             precision_avg, precision_std), file=f)

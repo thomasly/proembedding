@@ -6,6 +6,7 @@ test/
 src/logs
 src/training_logs
 results/
+docking_pointnet_training_results/
 
 # vs code settings
 .vscode/
