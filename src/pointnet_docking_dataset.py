@@ -151,6 +151,10 @@ def load_data_kfold(k, input_path, pca_rotate=False):
 
  
 def train(in_path, out_path, k_fold, epochs, batch_size, drop_rate, pca=False):
+    config = tf.compat.v1.ConfigProto(allow_soft_placement=True)
+    config.gpu_options.allow_growth = True
+    sess = tf.compat.v1.Session(config=config)
+    tf.compat.v1.keras.backend.set_session(sess)
     # load and k-fold split the training dataset
     folds, X_data, Y_data = load_data_kfold(k_fold, in_path, pca_rotate=pca)
     # print("folds: {}".format(folds))
