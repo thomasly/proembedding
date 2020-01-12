@@ -166,7 +166,7 @@ def train(in_path, out_path, k_fold, epochs, batch_size, drop_rate, pca=False):
         classes = 1
     else:
         classes = Y_data.shape[-1]
-    print("classes: {}".format(classes))
+    # print("classes: {}".format(classes))
     model = PointNet(channels=n_channels,
                      classes=classes,
                      drop_rate=drop_rate)
