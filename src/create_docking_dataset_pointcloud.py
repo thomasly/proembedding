@@ -43,7 +43,7 @@ class MainParser(ArgumentParser):
         self.add_argument("-i", "--in-path",
                           help="Path to the dataset directories.")
         self.add_argument("-o", "--out-path",
-                          help="Path to save the graph files.")
+                          help="Path to save the pointnet files.")
         self.add_argument("-p", "--prefix", default=None,
                           help="Prefix for the output files.")
         self.add_argument("-t", "--type-channel", action="store_true",
