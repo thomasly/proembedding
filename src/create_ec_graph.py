@@ -1,9 +1,10 @@
 import os
 from random import sample
+import pickle as pk
 
 import pandas as pd
 
-from utils import GraphCreator
+from utils.graph_creator import GraphCreator
 
 
 def create_file_list(path="../data/Enzyme/EC_PDB"):
@@ -38,10 +39,16 @@ def create_labels(csv="../data/Enzyme/Structure_EC_benchmark.csv"):
 def create_graph(cutoff, save_path, prefix, n_samples):
     pdb_file_list = create_file_list()
     pdb_file_list = sample(pdb_file_list, n_samples)
+    with open("../data/Enzyme/EC_graph/sampled_file_list", "wb") as f:
+        pk.dump(pdb_file_list, f)
     graph_label_dict = create_labels()
     graph_creator = GraphCreator(pdb_file_list, graph_label_dict)
     graph_creator.save_graph(prefix, cutoff, save_path)
 
 
 if __name__ == "__main__":
+    import sys
+    log_f = open("log", "w")
+    sys.stdout = log_f
     create_graph(10, "../data/Enzyme/EC_graph", "ec", 5000)
+    sys.stdout.close()
