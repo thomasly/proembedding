@@ -106,6 +106,8 @@ class XYZParser:
 
 class XYZ2Graph:
 
+    atom_types = {'C': 0, 'H': 1, 'N': 2, 'O': 3, 'F': 4}
+
     def __init__(self, path):
         self.xyz = XYZParser(path)
 
@@ -120,13 +122,29 @@ class XYZ2Graph:
         adjacency_matrix = np.where(mask, 1, 0)
         return coo_matrix(adjacency_matrix)
 
+    def get_surf_norms(self, coordinates):
+        return coordinates - np.mean(coordinates, axis=0)
+
     @property
     def node_attributes(self):
         coordinates = np.array(self.xyz.get_atom_coordinates())
+        norms = self.get_surf_norms(coordinates)
+        atom_types = np.expand_dims(
+            np.array(list(map(self.atom_types.get, self.xyz.atoms))), 1)
         charges = np.expand_dims(np.array(self.xyz.get_atom_charges()), 1)
-        attributes = np.concatenate([coordinates, charges], axis=1)
+        attributes = np.concatenate(
+            [coordinates, norms, atom_types, charges], axis=1)
         return attributes
 
     @property
     def graph_label(self):
         return self.xyz.comments
+
+    def get_atom_types(self):
+        atom_types = list()
+        for atom in self.mol_parser.get_atom_attributes():
+            try:
+                atom_types.append(self._atom2int[atom.type.upper()])
+            except KeyError:
+                atom_types.append(self._atom2int["ANY"])
+        return atom_types
