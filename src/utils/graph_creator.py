@@ -68,6 +68,8 @@ class GraphCreator:
                 pdb_pfh.get_attributes()
             except AssertionError:
                 continue
+            except Exception:
+                continue
             a.write(self.get_adjacency_matrix(pdb_pfh, starting_number))
             idc.write((str(pdb_idx)+"\n")*len(pdb_pfh.all_ca))
             g_label.write(str(label)+"\n")
@@ -75,7 +77,6 @@ class GraphCreator:
                 n_label.write(str(attr)[1:-1]+"\n")
             starting_number += len(pdb_pfh.all_ca)
             pdb_idx += 1
-        class_label += 1
 
         a.close()
         idc.close()
@@ -120,7 +121,10 @@ class PDBtoPFH():
         with open(self.file_path, "r") as f:
             self.data = f.readlines()
         # calculate solvent access data
-        self.solvent_access = fs.calc(fs.Structure(self.file_path))
+        try:
+            self.solvent_access = fs.calc(fs.Structure(self.file_path))
+        except Exception:
+            raise
         self._clean_data()
         try:
             self._ca_attributes()
@@ -135,6 +139,8 @@ class PDBtoPFH():
         for d in self.data:
             if not d.startswith("ATOM"):
                 continue
+            if d.startswith("ENDMDL"):
+                break
             try:
                 atom_id = int(d[6:11].strip())
                 res_id = int(d[22:26].strip())
@@ -176,6 +182,12 @@ class PDBtoPFH():
             if atom.atom_name.upper() == "C":
                 self.all_c.append([atom.x, atom.y, atom.z])
 
+    def _get_n(self):
+        self.all_n = []
+        for atom in self.cl_data:
+            if atom.atom_name.upper() == "N":
+                self.all_n.append([atom.x, atom.y, atom.z])
+
     # ### calculate the distance of all the C-alpha to other C-alpha
     def distance(self, start, end):
         st = np.array(start)
@@ -212,14 +224,30 @@ class PDBtoPFH():
         all_c = np.array(self.all_c, dtype=np.float32)
         self.norms = all_c - all_ca
 
+    def _calculate_surf_norm(self):
+        try:
+            assert(len(self.all_ca)==len(self.all_c))
+        except AssertionError:
+            print(f"{self.file_path} has different numbers of Ca and C.")
+            raise
+        all_ca = np.array(self.all_ca, dtype=np.float32)
+        all_c = np.array(self.all_c, dtype=np.float32)
+        all_n = np.array(self.all_n, dtype=np.float32)
+        n_ca = all_n - all_ca
+        c_ca = all_c - all_ca
+        self.surf_norms = np.cross(n_ca, c_ca)
+
     def _ca_attributes(self):
         self._get_ca()
         self._get_c()
+        self._get_n()
         try:
             self._calculate_norms()
+            self._calculate_surf_norm()
         except AssertionError:
             raise
         self.ca_attributes = [
-            ca + list(sf) + [resi_type] + [solv] for \
-                ca, sf, resi_type, solv in zip(
-                    self.all_ca, self.norms, self.ca_res, self.ca_solv)]
+            ca + list(norm) + list(surf_norm) + [resi_type] + [solv] for \
+                ca, norm, surf_norm, resi_type, solv in zip(
+                    self.all_ca, self.norms, self.surf_norms, 
+                    self.ca_res, self.ca_solv)]
