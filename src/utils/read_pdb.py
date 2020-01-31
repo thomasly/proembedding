@@ -15,6 +15,7 @@ class PDB:
         self.atoms = None
         self.ca = None
         self.c = None
+        self.n = None
 
     def _load_contents(self):
         with open(self.pdb_f, "r") as f:
@@ -28,6 +29,7 @@ class PDB:
         self.atoms = list()
         self.ca = list()
         self.c = list()
+        self.n = list()
         for line in self.pdb_contents:
             if not line.startswith("ATOM"):
                 continue
@@ -48,6 +50,8 @@ class PDB:
                 self.ca.append(atom)
             if atom.atom_name == "C":
                 self.c.append(atom)
+            if atom.atom_name == "N":
+                self.n.append(atom)
             self.atoms.append(atom)
         return self.atoms
 
@@ -60,6 +64,11 @@ class PDB:
         if self.c is None:
             self.get_atoms()
         return self.c
+
+    def get_n(self):
+        if self.n is None:
+            self.get_atoms()
+        return self.n
 
     @staticmethod
     def resi2int(resi_name: str):
