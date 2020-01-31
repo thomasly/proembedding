@@ -47,7 +47,7 @@ class PDBtoPFH():
         with open(self.file_path, "r") as f:
             self.data = f.readlines()
         # calculate solvent access data
-        self.solvent_access = fs.calc(fs.Structure(self.file_path))
+        # self.solvent_access = fs.calc(fs.Structure(self.file_path))
         self._clean_data()
         self._ca_attributes()
         self._distance_to_others()
@@ -79,7 +79,7 @@ class PDBtoPFH():
     def _get_ca(self):
         self.all_ca = []
         self.ca_res = []
-        self.ca_solv = []
+        # self.ca_solv = []
         for atom in self.cl_data:
             if atom.atom_name.upper() == "CA":
                 try:
@@ -87,11 +87,11 @@ class PDBtoPFH():
                         self.resi_to_int[atom.residue_name.upper()])
                 except KeyError:
                     self.ca_res.append(self.resi_to_int["NAA"])
-                try:
-                    self.ca_solv.append(
-                        self.solvent_access.atomArea(atom.atom_id))
-                except Exception:
-                    self.ca_solv.append(0.0)
+                # try:
+                #     self.ca_solv.append(
+                #         self.solvent_access.atomArea(atom.atom_id))
+                # except Exception:
+                #     self.ca_solv.append(0.0)
                 self.all_ca.append([atom.x, atom.y, atom.z])
 
     def _get_c(self):
@@ -99,6 +99,12 @@ class PDBtoPFH():
         for atom in self.cl_data:
             if atom.atom_name.upper() == "C":
                 self.all_c.append([atom.x, atom.y, atom.z])
+
+    def _get_n(self):
+        self.all_n = []
+        for atom in self.cl_data:
+            if atom.atom_name.upper() == "N":
+                self.all_n.append([atom.x, atom.y, atom.z])
 
     # ### calculate the distance of all the C-alpha to other C-alpha
     def distance(self, start, end):
@@ -132,14 +138,32 @@ class PDBtoPFH():
         all_c = np.array(self.all_c, dtype=np.float32)
         self.norms = all_c - all_ca
 
+    def _calculate_surf_norm(self):
+        try:
+            assert(len(self.all_ca)==len(self.all_c))
+        except AssertionError:
+            print(f"{self.file_path} has different numbers of Ca and C.")
+            raise
+        all_ca = np.array(self.all_ca, dtype=np.float32)
+        all_c = np.array(self.all_c, dtype=np.float32)
+        all_n = np.array(self.all_n, dtype=np.float32)
+        n_ca = all_n - all_ca
+        c_ca = all_c - all_ca
+        self.surf_norms = np.cross(n_ca, c_ca)
+
     def _ca_attributes(self):
         self._get_ca()
         self._get_c()
-        self._calculate_norms()
+        self._get_n()
+        try:
+            self._calculate_surf_norm()
+        except AssertionError:
+            raise
         self.ca_attributes = [
-            ca + list(sf) + [resi_type] + [solv] for \
-                ca, sf, resi_type, solv in zip(
-                    self.all_ca, self.norms, self.ca_res, self.ca_solv)]
+            ca + list(surf_norm) + [resi_type] for \
+                ca, surf_norm, resi_type in zip(
+                    self.all_ca, self.surf_norms, 
+                    self.ca_res)]
 
 
 class Pocket2PFH(PDBtoPFH):
@@ -152,7 +176,7 @@ class Pocket2PFH(PDBtoPFH):
     def _get_ca(self):
         self.all_ca = []
         self.ca_res = []
-        self.ca_solv = []
+        # self.ca_solv = []
         for atom in self.cl_data:
             if atom.atom_name.upper() == "CA" and (
                     atom.residue_id in self.residue_list):
@@ -161,11 +185,11 @@ class Pocket2PFH(PDBtoPFH):
                         self.resi_to_int[atom.residue_name.upper()])
                 except KeyError:
                     self.ca_res.append(self.resi_to_int["NAA"])
-                try:
-                    self.ca_solv.append(
-                        self.solvent_access.atomArea(atom.atom_id))
-                except Exception:
-                    self.ca_solv.append(0.0)
+                # try:
+                #     self.ca_solv.append(
+                #         self.solvent_access.atomArea(atom.atom_id))
+                # except Exception:
+                #     self.ca_solv.append(0.0)
                 self.all_ca.append([atom.x, atom.y, atom.z])
 
     def _get_c(self):
@@ -175,6 +199,12 @@ class Pocket2PFH(PDBtoPFH):
                     atom.residue_id in self.residue_list):
                 self.all_c.append([atom.x, atom.y, atom.z]) 
 
+    def _get_n(self):
+        self.all_n = []
+        for atom in self.cl_data:
+            if atom.atom_name.upper() == "N" and (
+                    atom.residue_id in self.residue_list):
+                self.all_n.append([atom.x, atom.y, atom.z])
     
 
                 
@@ -182,7 +212,7 @@ class TOUGH_C1_Graph:
 
     def __init__(self, dataset):
         self.root = os.path.join(os.path.pardir, "data")
-        self.tough_dir = os.path.join(self.root, "osfstorage-archive")
+        self.tough_dir = os.path.join(self.root, "tough_c1")
         self.control = os.path.join(self.tough_dir, "protein-control")
         self.heme = os.path.join(self.tough_dir, "protein-heme")
         self.nucleotide = os.path.join(self.tough_dir, "protein-nucleotide")
@@ -341,14 +371,14 @@ if __name__ == "__main__":
     args = parser.parse_args(sys.argv[1:])
     if args.pocket:
         tcpg = TOUGH_C1_Pocket_Graph("tough-c1")
-        tcpg.save_graph("TOUGH-C1")
-        tcpg.save_graph("TOUGH-C1", 15)
+        tcpg.save_graph("TOUGH-C1-surfnorm")
+        # tcpg.save_graph("TOUGH-C1", 15)
         tcpg = TOUGH_C1_Pocket_Graph("nucleotide")
-        tcpg.save_graph("nucleotide")
-        tcpg.save_graph("nucleotide", 15)
+        tcpg.save_graph("nucleotide-surfnorm")
+        # tcpg.save_graph("nucleotide", 15)
         tcpg = TOUGH_C1_Pocket_Graph("heme")
-        tcpg.save_graph("heme")
-        tcpg.save_graph("heme", 15)
+        tcpg.save_graph("heme-surfnorm")
+        # tcpg.save_graph("heme", 15)
     else:
         tcg = TOUGH_C1_Graph("tough-c1")
         tcg.save_graph("TOUGH-C1")
