@@ -7,9 +7,17 @@ from sklearn.decomposition import PCA
 
 
 class Mol2Parser:
-    
+
     def __init__(self, mol2_path):
         self._path = mol2_path
+
+    @property
+    def molecule_name(self):
+        try:
+            return self._molecule_name
+        except AttributeError:
+            self._molecule_name = self.content_dict["MOLECULE"][0]
+            return self._molecule_name
 
     @property
     def contents(self):
@@ -93,10 +101,10 @@ class Mol2toGraph:
                   "O.3,O.2,O.co2,O.spc,O.t3p,S.3,S.2,S.O,S.O2,P.3,F,Cl,Br,I,"\
                   "H,H.spc,H.t3p,LP,Du,Du.C,Hal,Het,Hev,Li,Na,Mg,Al,Si,K,Ca,"\
                   "Cr.thm,Cr.oh,Mn,Fe,Co.oh,Cu,Any".split(",")
-    _atom2int = {atom.upper():idx for idx, atom in enumerate(_atom_types)}
+    _atom2int = {atom.upper(): idx for idx, atom in enumerate(_atom_types)}
 
     _bond_types = "1,2,3,am,ar,du,un,cn,any".split(",")
-    _bond2int = {bond.upper():idx for idx, bond in enumerate(_bond_types)}
+    _bond2int = {bond.upper(): idx for idx, bond in enumerate(_bond_types)}
 
     def __init__(self, mol2_path):
         self._path = mol2_path
@@ -169,11 +177,19 @@ class Mol2toGraph:
                     self._bond2int["ANY"]
         return bond_types
 
+    @property
+    def mol_name(self):
+        try:
+            return self._mol_name
+        except AttributeError:
+            self._mol_name = self.mol_parser.molecule_name
+            return self._mol_name
+
 
 class Mol2toGrid:
 
-    _atom_types = "C,N,O,S,P,B,F,Cl,Br,I,H,Any".split(",") 
-    _atom2int = {atom.upper():idx for idx, atom in enumerate(_atom_types)}
+    _atom_types = "C,N,O,S,P,B,F,Cl,Br,I,H,Any".split(",")
+    _atom2int = {atom.upper(): idx for idx, atom in enumerate(_atom_types)}
 
     def __init__(self, mol2_path):
         self._path = mol2_path
@@ -195,7 +211,8 @@ class Mol2toGrid:
         return coo_grid
 
     def coo_grid(self, dimension, zoom):
-        try: return self._coo_grid
+        try:
+            return self._coo_grid
         except AttributeError:
             self._coo_grid = self._get_coodinate_grid(dimension, zoom=zoom)
             return self._coo_grid
@@ -234,7 +251,7 @@ class Mol2toGrid:
                          cutoff,
                          power):
         start = int(dimension/zoom//2)
-        grid = copy.deepcopy(self.coo_grid(dimension, zoom=zoom)) 
+        grid = copy.deepcopy(self.coo_grid(dimension, zoom=zoom))
         grid = grid - start
         distances = np.linalg.norm((grid - coordinates), axis=3)
         atom_rep = np.where(distances < cutoff, distances, float("inf"))
@@ -262,7 +279,7 @@ class Mol2toPointCloud:
                   "O.3,O.2,O.co2,O.spc,O.t3p,S.3,S.2,S.O,S.O2,P.3,F,Cl,Br,I,"\
                   "H,H.spc,H.t3p,LP,Du,Du.C,Hal,Het,Hev,Li,Na,Mg,Al,Si,K,Ca,"\
                   "Cr.thm,Cr.oh,Mn,Fe,Co.oh,Cu,Any".split(",")
-    _atom2int = {atom.upper():idx for idx, atom in enumerate(_atom_types)}
+    _atom2int = {atom.upper(): idx for idx, atom in enumerate(_atom_types)}
 
     def __init__(self, mol2_path):
         self._path = mol2_path
@@ -275,7 +292,7 @@ class Mol2toPointCloud:
     def get_point_cloud(self, include_type=True):
         # get the attributes of atoms from the .mol2 file
         atoms = self.mol_parser.get_atom_attributes()
-        
+
         # initialize the point cloud
         point_cloud = np.zeros((len(atoms), 3))
         type_channel = np.zeros((len(atoms), 1))
@@ -316,4 +333,3 @@ if __name__ == "__main__":
     cloud = m2pc.get_point_cloud(include_type=True)
     print(cloud)
     print("shape:", cloud.shape)
-
