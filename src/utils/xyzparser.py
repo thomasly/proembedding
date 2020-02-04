@@ -56,7 +56,7 @@ class XYZParser:
                 coor = list(map(self._asfloat, line.split()[1:4]))
                 coordinates.append(coor)
             except ValueError:
-                print(self.path)
+                print("{} lacks coordinates information.".format(self.path))
                 raise
         return coordinates
 
