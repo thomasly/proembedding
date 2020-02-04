@@ -23,6 +23,7 @@ def _get_graph_label(path):
         return 1
     return 0
 
+
 def save_graph(in_path, out_path, prefix, decimal=6):
     # define prefix
     if prefix is None:
@@ -48,7 +49,7 @@ def save_graph(in_path, out_path, prefix, decimal=6):
         os.path.join(out_path, prefix+"_edge_attributes.txt"), "w")
     mol_list = open(
         os.path.join(out_path, prefix+"_mol_list.txt"), "w")
-    
+
     # initialize variables for graph indicator and nodes indices
     graph_id = 1
     node_starting_index = 0
@@ -64,7 +65,7 @@ def save_graph(in_path, out_path, prefix, decimal=6):
         # write bond types
         try:
             bond_types = m2g.get_bond_types()
-        except KeyError: # files lacking bond information
+        except KeyError:  # files lacking bond information
             continue
         for origin, target in zip(adj_matrix.row, adj_matrix.col):
             key = str(origin+1) + "-" + str(target+1)
@@ -88,7 +89,7 @@ def save_graph(in_path, out_path, prefix, decimal=6):
         coordinates = np.array(m2g.atom_coordinates)
         surf_norms = m2g.get_surf_norms()
         atom_types = np.array(m2g.get_atom_types()).reshape(-1, 1)
-        node_features = np.concatenate((coordinates, surf_norms,atom_types),
+        node_features = np.concatenate((coordinates, surf_norms, atom_types),
                                        axis=1)
         writable = _convert2string(node_features, decimal)
         n_label.write(writable)
