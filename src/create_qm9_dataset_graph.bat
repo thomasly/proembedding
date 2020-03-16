@@ -1,15 +1,16 @@
 @echo off
 
-REM python -m create_qm9_dataset_graph ^
-REM -e distance ^
-REM -i ..\data\QM9\quantum-machine-9-aka-qm9 ^
-REM -o ..\data\QM9\graphs\cutoff_5 ^
-REM -c 5 ^
-REM -d 6
-
 python -m create_qm9_dataset_graph ^
--e bond ^
--i ..\data\QM9\mol2 ^
--o ..\data\QM9\graphs\bonds ^
+-e distance ^
+-i ..\data\QM9\quantum-machine-9-aka-qm9 ^
+-o ..\data\QM9\graphs\excluded\cutoff_5 ^
+-x ..\data\QM9\excludedMolecules_MG.txt ^
 -c 5 ^
 -d 6
+
+REM python -m create_qm9_dataset_graph ^
+REM -e bond ^
+REM -i ..\data\QM9\mol2 ^
+REM -o ..\data\QM9\graphs\bonds ^
+REM -c 5 ^
+REM -d 6

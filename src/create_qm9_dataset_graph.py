@@ -8,6 +8,7 @@ import numpy as np
 
 from utils.xyzparser import XYZ2Graph
 from utils.mol2parser import Mol2toGraph
+from utils.txtparser import ExcludeTxt
 
 
 def _convert2string(array, precision=6):
@@ -50,13 +51,37 @@ def save_graph(edge_type, *args, **kwargs):
         print("Edge type is not valid.")
 
 
-def save_graph_distance(in_path, out_path, prefix, cutoff=5, precision=6):
+def _get_infiles(in_path, exclude):
+    if exclude is None:
+        infiles = [f.path for f in os.scandir(in_path)]
+        return infiles
+
+    infiles = list()
+    excluded = ExcludeTxt(exclude).indices_set
+    for f in os.scandir(in_path):
+        if f.is_dir():
+            continue
+        if f.name.split(".")[0].split("_")[1] in excluded:
+            continue
+        infiles.append(f.path)
+    return infiles
+
+
+def save_graph_distance(in_path,
+                        out_path,
+                        prefix,
+                        cutoff=5,
+                        precision=6,
+                        exclude=None):
+    r""" Save graphs with distances as edge
+    exclude (list): molecule indices to be excluded when creating graphs
+    """
     # define prefix
     if prefix is None:
         prefix = os.path.basename(in_path)
 
     # input file list
-    infiles = [f.path for f in os.scandir(in_path)]
+    infiles = _get_infiles(in_path, exclude)
     # create output directory
     os.makedirs(out_path, exist_ok=True)
 
@@ -115,13 +140,18 @@ def save_graph_distance(in_path, out_path, prefix, cutoff=5, precision=6):
     mol_list.close()
 
 
-def save_graph_bond(in_path, out_path, prefix, cutoff=5, precision=6):
+def save_graph_bond(in_path,
+                    out_path,
+                    prefix,
+                    cutoff=5,
+                    precision=6,
+                    exclude=None):
     # define prefix
     if prefix is None:
         prefix = os.path.basename(in_path)
 
     # input file list
-    infiles = list(os.scandir(in_path))
+    infiles = _get_infiles(in_path, exclude)
     # create output directory
     os.makedirs(out_path, exist_ok=True)
 
@@ -142,9 +172,9 @@ def save_graph_bond(in_path, out_path, prefix, cutoff=5, precision=6):
     graph_id = 1
     node_starting_index = 0
     for infile in tqdm(infiles):
-        if not infile.name.endswith(".mol2"):
+        if not infile.endswith(".mol2"):
             continue
-        m2g = Mol2toGraph(infile.path)
+        m2g = Mol2toGraph(infile)
 
         # generate adjacency matrix
         adj_matrix = m2g.get_adjacency_matrix()
@@ -181,7 +211,7 @@ def save_graph_bond(in_path, out_path, prefix, cutoff=5, precision=6):
         n_label.write(writable)
 
         # log the mol2 file path
-        mol_list.write(infile.path+"\n")
+        mol_list.write(infile+"\n")
 
     # close output files
     a.close()
@@ -209,6 +239,8 @@ class MainParser(ArgumentParser):
                           help="The cut off value for adjacency matrix.")
         self.add_argument("-d", "--precision", type=int, default=6,
                           help="Precision digits of the floats.")
+        self.add_argument("-x", "--exclude",
+                          help="Path the the file with excluded indices")
 
 
 if __name__ == "__main__":
