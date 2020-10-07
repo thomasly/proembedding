@@ -1,10 +1,13 @@
+#debugging
+debug.ipynb
+
 # testing files
 notebook/
-test/
+proembedding/tests
 
 # running logs
-src/logs
-src/training_logs
+proembedding/logs
+proembedding/training_logs
 results/
 docking_pointnet_training_results/
 
@@ -12,7 +15,12 @@ docking_pointnet_training_results/
 .vscode/
 
 # data file
-data/
+data/docking
+data/Enzyme
+data/graphs
+data/PROTEINS
+data/QM9
+data/tough_c1
 bin/
 
 # Byte-compiled / optimized / DLL files
