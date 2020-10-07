@@ -128,6 +128,16 @@ class Mol2toGraph:
             return self._atom_coordinates
 
     @property
+    def atom_charges(self):
+        try:
+            return self._atom_charges
+        except AttributeError:
+            self._atom_charges = list()
+            for atom in self.mol_parser.get_atom_attributes():
+                self._atom_charges.append(float(atom.charge))
+        return self._atom_charges
+
+    @property
     def n_atoms(self):
         return self.mol_parser.n_atoms
 

@@ -11,6 +11,14 @@ from utils.mol2parser import Mol2toGraph
 from utils.txtparser import ExcludeTxt
 
 
+REF_ENERGY = {
+    "u0": [-37.846772, -0.500273, -54.583861, -75.064579, -99.718730],
+    "u298": [-37.845355, -0.498857, -54.582445, -75.063163, -99.717314],
+    "h298": [-37.844411, -0.497912, -54.581501, -75.062219, -99.716370],
+    "g298": [-37.861317, -0.510927, -54.598897, -75.079532, -99.733544]
+}
+
+
 def _convert2string(array, precision=6):
     """ Convert a 2D numpy array to a writable string without brackets
     """
@@ -18,6 +26,30 @@ def _convert2string(array, precision=6):
     for row in range(array.shape[0]):
         ret += ",".join(map(str, array[row].round(precision).tolist()))+"\n"
     return ret
+
+
+def qm9_graph_label(label, graph_parser):
+    # {'C': 0, 'H': 1, 'N': 2, 'O': 3, 'F': 4}
+    labels = label.split()
+    u0, u298, h298, g298 = map(float, labels[12:16])
+    atoms = graph_parser.get_atom_types()
+    natoms = [0, 0, 0, 0, 0]
+    for atom in atoms:
+        natoms[atom] += 1
+    for natom, ref in zip(natoms, REF_ENERGY["u0"]):
+        u0 -= natom * ref
+    u0 = round(u0, 4)
+    for natom, ref in zip(natoms, REF_ENERGY["u298"]):
+        u298 -= natom * ref
+    u298 = round(u298, 4)
+    for natom, ref in zip(natoms, REF_ENERGY["h298"]):
+        h298 -= natom * ref
+    h298 = round(h298, 4)
+    for natom, ref in zip(natoms, REF_ENERGY["g298"]):
+        g298 -= natom * ref
+    g298 = round(g298, 4)
+    labels[12:16] = map(str, [u0, u298, h298, g298])
+    return ",".join(labels)
 
 
 def create_graph(infile, cutoff, precision):
@@ -31,7 +63,7 @@ def create_graph(infile, cutoff, precision):
     # get graph indicator
     indicator_len = m2g.n_nodes
     # get graph label
-    g_label = str(m2g.graph_label)+"\n"
+    g_label = qm9_graph_label(m2g.graph_label, m2g)+"\n"
     # get node features
     node_features = _convert2string(m2g.node_attributes, precision)
     # log the mol2 file path

@@ -1,5 +1,6 @@
 #debugging
 debug.ipynb
+playground.ipynb
 
 # testing files
 notebook/
@@ -21,6 +22,7 @@ data/graphs
 data/PROTEINS
 data/QM9
 data/tough_c1
+data.tar.gz
 bin/
 
 # Byte-compiled / optimized / DLL files

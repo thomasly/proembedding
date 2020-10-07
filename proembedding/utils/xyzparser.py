@@ -106,7 +106,7 @@ class XYZParser:
 
 class XYZ2Graph:
 
-    atom_types = {'C': 0, 'H': 1, 'N': 2, 'O': 3, 'F': 4}
+    atom_types = {'C': 0, 'H': 1, 'N': 2, 'O': 3, 'F': 4, 'ANY': 5}
 
     def __init__(self, path):
         self.xyz = XYZParser(path)
@@ -142,9 +142,9 @@ class XYZ2Graph:
 
     def get_atom_types(self):
         atom_types = list()
-        for atom in self.mol_parser.get_atom_attributes():
+        for atom in self.xyz.atoms:
             try:
-                atom_types.append(self._atom2int[atom.type.upper()])
+                atom_types.append(self.atom_types[atom.upper()])
             except KeyError:
-                atom_types.append(self._atom2int["ANY"])
+                atom_types.append(self.atom_types["ANY"])
         return atom_types
